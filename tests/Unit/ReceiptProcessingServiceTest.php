@@ -107,6 +107,8 @@ class ReceiptProcessingServiceTest extends TestCase
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
         $this->assertEquals('Gagal baca resit. Sila isi borang secara manual.', $result->description);
+        $this->assertNotEmpty($result->receiptUrl);
+        $this->assertNotEmpty($result->error);
     }
 
     public function test_process_returns_fallback_on_invalid_json(): void
@@ -137,7 +139,9 @@ class ReceiptProcessingServiceTest extends TestCase
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
-        $this->assertEquals('Perbelanjaan resit', $result->description);
+        $this->assertEquals('Gagal baca resit. Sila isi borang secara manual.', $result->description);
+        $this->assertNotEmpty($result->receiptUrl);
+        $this->assertNotEmpty($result->error);
     }
 
     public function test_process_stores_receipt_file(): void

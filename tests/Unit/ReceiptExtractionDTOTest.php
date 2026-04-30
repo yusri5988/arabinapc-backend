@@ -62,6 +62,7 @@ class ReceiptExtractionDTOTest extends TestCase
             'amount' => 50.75,
             'description' => 'Beli barang dapur',
             'receipt_url' => '/storage/receipts/test.jpg',
+            'error' => null,
         ], $array);
     }
 

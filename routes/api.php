@@ -24,7 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/transactions', [TransactionController::class, 'index']);
         Route::get('/admin/supervisors/{supervisor}/transactions', [TransactionController::class, 'supervisorHistory']);
         Route::post('/admin/supervisors', [AdminController::class, 'createSupervisor']);
-        Route::post('/admin/main-cash/topup', [AdminController::class, 'topupMainCash']);
+        Route::post('/admin/supervisors/{supervisor}/reset-password', [AdminController::class, 'resetStaffPassword']);
         Route::post('/admin/topup', [AdminController::class, 'topup']);
     });
 

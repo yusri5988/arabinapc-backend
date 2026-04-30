@@ -11,6 +11,9 @@ class TransactionController extends Controller
     public function index(Request $request)
     {
         $transactions = Transaction::with('user')
+            ->whereHas('user', function ($query) {
+                $query->where('role', 'supervisor');
+            })
             ->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
             ->get()
