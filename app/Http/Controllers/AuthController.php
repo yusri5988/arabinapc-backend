@@ -11,16 +11,22 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+        $request->merge([
+            'phone' => $this->normalizePhone((string) $request->input('phone', '')),
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $request->validate([
+            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{8,15}$/'],
+            'password' => ['required', 'string'],
+        ], [
+            'phone.regex' => 'No telefon tidak sah.',
+        ]);
+
+        $user = User::where('phone', $request->phone)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Maklumat log masuk tidak sah.'],
+                'phone' => ['Maklumat log masuk tidak sah.'],
             ]);
         }
 
@@ -38,7 +44,12 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Log keluar berjaya.'
+            'message' => 'Log keluar berjaya.',
         ]);
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        return preg_replace('/[\s-]+/', '', trim($phone)) ?? '';
     }
 }

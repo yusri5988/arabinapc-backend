@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -30,20 +30,27 @@ class AdminController extends Controller
     public function listSupervisors()
     {
         $supervisors = User::where('role', 'supervisor')->get();
+
         return response()->json(['supervisors' => $supervisors]);
     }
 
     public function createSupervisor(Request $request)
     {
+        $request->merge([
+            'phone' => $this->normalizePhone((string) $request->input('phone', '')),
+        ]);
+
         $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6',
+            'name' => ['required', 'string'],
+            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{8,15}$/', 'unique:users,phone'],
+            'password' => ['required', 'min:6'],
+        ], [
+            'phone.regex' => 'No telefon tidak sah.',
         ]);
 
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'phone' => $request->phone,
             'password' => bcrypt($request->password),
             'role' => 'supervisor',
             'balance' => 0,
@@ -65,7 +72,7 @@ class AdminController extends Controller
             'supervisor' => [
                 'id' => $supervisor->id,
                 'name' => $supervisor->name,
-                'email' => $supervisor->email,
+                'phone' => $supervisor->phone,
             ],
         ]);
     }
@@ -90,7 +97,7 @@ class AdminController extends Controller
                 'user_id' => $supervisor->id,
                 'type' => 'topup',
                 'amount' => $request->amount,
-                'description' => 'Duit diterima daripada Admin: ' . $admin->name,
+                'description' => 'Duit diterima daripada Admin: '.$admin->name,
                 'date' => now(),
                 'metadata' => [
                     'source' => 'admin_send_to_supervisor',
@@ -103,5 +110,10 @@ class AdminController extends Controller
             'message' => 'Duit berjaya dihantar kepada supervisor.',
             'balance' => $supervisor->fresh()->balance,
         ]);
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        return preg_replace('/[\s-]+/', '', trim($phone)) ?? '';
     }
 }

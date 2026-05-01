@@ -64,7 +64,7 @@ class TransactionController extends Controller
             'supervisor' => [
                 'id' => $supervisor->id,
                 'name' => $supervisor->name,
-                'email' => $supervisor->email,
+                'phone' => $supervisor->phone,
                 'balance' => $supervisor->balance,
             ],
             'transactions' => $transactions,
