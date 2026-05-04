@@ -19,13 +19,5 @@ class UserSeeder extends Seeder
             'role' => 'admin',
             'balance' => 10000,
         ]);
-
-        User::create([
-            'name' => 'Supervisor 1',
-            'phone' => '0111111111',
-            'password' => bcrypt('password'),
-            'role' => 'supervisor',
-            'balance' => 0,
-        ]);
     }
 }
