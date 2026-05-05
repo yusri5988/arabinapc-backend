@@ -57,7 +57,7 @@ class SupervisorController extends Controller
     public function processReceipt(Request $request, ReceiptProcessingService $receiptProcessingService)
     {
         $request->validate([
-            'receipt' => 'required|image|max:5120',
+            'receipt' => 'required|image|max:20480',
         ]);
 
         $receiptData = $receiptProcessingService->process($request->file('receipt'));
