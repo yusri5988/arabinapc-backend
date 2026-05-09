@@ -10,13 +10,26 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Services\GoogleDriveService;
 
 class ReceiptProcessingService
 {
+    public function __construct(
+        protected GoogleDriveService $googleDriveService
+    ) {}
+
     public function process(UploadedFile $receipt): ReceiptExtractionDTO
     {
-        $storedPath = $receipt->store('receipts', 'public');
-        $receiptUrl = Storage::disk('public')->url($storedPath);
+        $storedPath = $this->googleDriveService->upload($receipt, 'receipts');
+        
+        if ($storedPath) {
+            $receiptUrl = $this->googleDriveService->getUrl($storedPath);
+        } else {
+            // Fallback to local if Google Drive fails
+            $storedPath = $receipt->store('receipts', 'public');
+            $receiptUrl = Storage::disk('public')->url($storedPath);
+        }
+
         $apiKey = (string) config('services.gemini.api_key');
 
         if ($apiKey === '') {
