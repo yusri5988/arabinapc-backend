@@ -34,7 +34,7 @@ class SupervisorController extends Controller
         $user = $request->user();
 
         if ($user->balance < $request->amount) {
-            return response()->json(['message' => 'Baki tidak mencukupi.'], 400);
+            return response()->json(['message' => 'Insufficient balance.'], 400);
         }
 
         DB::transaction(function () use ($user, $request) {
@@ -51,7 +51,7 @@ class SupervisorController extends Controller
             ]);
         });
 
-        return response()->json(['message' => 'Perbelanjaan berjaya direkodkan.']);
+        return response()->json(['message' => 'Expense successfully recorded.']);
     }
 
     public function processReceipt(Request $request, ReceiptProcessingService $receiptProcessingService)

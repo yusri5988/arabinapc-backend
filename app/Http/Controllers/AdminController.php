@@ -14,16 +14,9 @@ class AdminController extends Controller
     public function dashboard()
     {
         $supervisors = User::where('role', 'supervisor')->get();
-        $supervisor_total = $supervisors->sum('balance');
-        $supervisorTransactions = Transaction::whereHas('user', function ($query) {
-            $query->where('role', 'supervisor');
-        });
 
         return response()->json([
             'supervisors' => $supervisors,
-            'total_supervisor_cash' => $supervisor_total,
-            'total_supervisor_in' => (clone $supervisorTransactions)->where('type', 'topup')->sum('amount'),
-            'total_supervisor_out' => (clone $supervisorTransactions)->where('type', 'expense')->sum('amount'),
         ]);
     }
 
@@ -45,7 +38,7 @@ class AdminController extends Controller
             'phone' => ['required', 'string', 'regex:/^\+?[0-9]{8,15}$/', 'unique:users,phone'],
             'password' => ['required', 'min:6'],
         ], [
-            'phone.regex' => 'No telefon tidak sah.',
+            'phone.regex' => 'Invalid phone number format.',
         ]);
 
         $user = User::create([
@@ -68,7 +61,7 @@ class AdminController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Password staff berjaya direset kepada 123456.',
+            'message' => 'Staff password successfully reset to 123456.',
             'supervisor' => [
                 'id' => $supervisor->id,
                 'name' => $supervisor->name,
@@ -97,7 +90,7 @@ class AdminController extends Controller
                 'user_id' => $supervisor->id,
                 'type' => 'topup',
                 'amount' => $request->amount,
-                'description' => 'Duit diterima daripada Admin: '.$admin->name,
+                'description' => 'Funds received from Admin: '.$admin->name,
                 'date' => now(),
                 'metadata' => [
                     'source' => 'admin_send_to_supervisor',
@@ -107,7 +100,7 @@ class AdminController extends Controller
         });
 
         return response()->json([
-            'message' => 'Duit berjaya dihantar kepada supervisor.',
+            'message' => 'Funds successfully sent to supervisor.',
             'balance' => $supervisor->fresh()->balance,
         ]);
     }

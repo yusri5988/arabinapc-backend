@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
+use App\Http\Requests\Auth\UpdatePasswordRequest;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -9,24 +13,13 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $request->merge([
-            'phone' => $this->normalizePhone((string) $request->input('phone', '')),
-        ]);
-
-        $request->validate([
-            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{8,15}$/'],
-            'password' => ['required', 'string'],
-        ], [
-            'phone.regex' => 'No telefon tidak sah.',
-        ]);
-
         $user = User::where('phone', $request->phone)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'phone' => ['Maklumat log masuk tidak sah.'],
+                'phone' => ['Invalid login credentials.'],
             ]);
         }
 
@@ -35,7 +28,7 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => $user,
+            'user' => new UserResource($user),
         ]);
     }
 
@@ -44,12 +37,41 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Log keluar berjaya.',
+            'message' => 'Successfully logged out.',
         ]);
     }
 
-    private function normalizePhone(string $phone): string
+    public function updateProfile(UpdateProfileRequest $request)
     {
-        return preg_replace('/[\s-]+/', '', trim($phone)) ?? '';
+        $user = $request->user();
+
+        $user->update([
+            'name' => $request->name,
+            'phone' => $request->phone,
+        ]);
+
+        return response()->json([
+            'message' => 'Profile successfully updated.',
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    public function updatePassword(UpdatePasswordRequest $request)
+    {
+        $user = $request->user();
+
+        if (! Hash::check($request->current_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Invalid current password.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json([
+            'message' => 'Password successfully updated.',
+        ]);
     }
 }
