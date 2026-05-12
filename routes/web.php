@@ -13,7 +13,7 @@ Route::get('/receipts/{filename}', function ($filename) {
         abort(404);
     }
 
-    return response()->file($path);
+    return response()->file($path, ['Cache-Control' => 'no-store, no-cache, must-revalidate']);
 })->where('filename', '.*');
 
 Route::get('/expense-items/{filename}', function ($filename) {
@@ -23,7 +23,7 @@ Route::get('/expense-items/{filename}', function ($filename) {
         abort(404);
     }
 
-    return response()->file($path);
+    return response()->file($path, ['Cache-Control' => 'no-store, no-cache, must-revalidate']);
 })->where('filename', '.*');
 
 Route::get('/storage/expense-items/{filename}', function ($filename) {
@@ -33,7 +33,7 @@ Route::get('/storage/expense-items/{filename}', function ($filename) {
         abort(404);
     }
 
-    return response()->file($path);
+    return response()->file($path, ['Cache-Control' => 'no-store, no-cache, must-revalidate']);
 })->where('filename', '.*');
 
 Route::fallback(function () {
