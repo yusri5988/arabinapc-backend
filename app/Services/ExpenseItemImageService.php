@@ -30,7 +30,7 @@ class ExpenseItemImageService
         }
 
         return ExpenseItemImageDTO::success(
-            imageUrl: rtrim(config('app.api_url', config('app.url')), '/') . str_replace('/storage/expense-items/', '/expense-items/', Storage::disk('public')->url($storedPath)),
+            imageUrl: Storage::disk('public')->url($storedPath),
             fileName: $image->getClientOriginalName(),
         );
     }
