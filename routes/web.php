@@ -16,6 +16,16 @@ Route::get('/receipts/{filename}', function ($filename) {
     return response()->file($path);
 })->where('filename', '.*');
 
+Route::get('/expense-items/{filename}', function ($filename) {
+    $path = storage_path('app/public/expense-items/' . $filename);
+
+    if (! file_exists($path)) {
+        abort(404);
+    }
+
+    return response()->file($path);
+})->where('filename', '.*');
+
 Route::fallback(function () {
     return file_get_contents(public_path('index.html'));
 });
