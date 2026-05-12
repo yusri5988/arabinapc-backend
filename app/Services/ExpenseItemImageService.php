@@ -30,7 +30,7 @@ class ExpenseItemImageService
         }
 
         return ExpenseItemImageDTO::success(
-            imageUrl: Storage::disk('public')->url($storedPath),
+            imageUrl: rtrim(config('app.url', 'http://localhost'), '/') . '/expense-items/' . basename($storedPath),
             fileName: $image->getClientOriginalName(),
         );
     }
