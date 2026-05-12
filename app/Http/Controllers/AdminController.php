@@ -4,10 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AdminController extends Controller
 {
@@ -111,6 +116,108 @@ class AdminController extends Controller
             'message' => 'Duit berjaya dihantar kepada supervisor.',
             'balance' => $supervisor->fresh()->balance,
         ]);
+    }
+
+    public function exportSupervisorExcel(User $supervisor): Response
+    {
+        abort_unless($supervisor->role === 'supervisor', 404);
+
+        $transactions = Transaction::where('user_id', $supervisor->id)
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        $totalIn = $transactions->where('type', 'topup')->sum('amount');
+        $totalOut = $transactions->where('type', 'expense')->sum('amount');
+        $openingBalance = (float) $supervisor->balance - (float) $totalIn + (float) $totalOut;
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Petty Cash');
+
+        $headers = [
+            'Date',
+            'Payment To',
+            'Details',
+            'Money Out',
+            'Money In',
+            'Initial balance',
+            'Inflow type',
+            'Outflow type',
+            'Details',
+            'Month',
+            'Doc.Link',
+        ];
+
+        $sheet->fromArray($headers, null, 'A1');
+
+        $headerStyle = $sheet->getStyle('A1:K1');
+        $headerStyle->getFont()->setBold(true);
+        $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
+
+        $row = 2;
+        $runningBalance = $openingBalance;
+
+        if ($transactions->isEmpty()) {
+            $sheet->setCellValue("A{$row}", now()->format('d/m/Y'));
+            $sheet->setCellValue("B{$row}", 'Opening Balance');
+            $sheet->setCellValueExplicit("F{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
+        } else {
+            foreach ($transactions as $transaction) {
+                $amount = (float) $transaction->amount;
+                $initialBalance = $runningBalance;
+
+                if ($transaction->type === 'topup') {
+                    $moneyIn = $amount;
+                    $moneyOut = 0;
+                    $inflowType = 'Topup';
+                    $outflowType = '';
+                    $paymentTo = $transaction->payment_to ?: 'Admin Transfer';
+                    $displayDetails = $transaction->details ?: 'Topup';
+                } else {
+                    $moneyIn = 0;
+                    $moneyOut = $amount;
+                    $inflowType = '';
+                    $outflowType = $transaction->details ?: 'Expense';
+                    $paymentTo = $transaction->payment_to ?: '-';
+                    $displayDetails = $transaction->details ?: $transaction->description;
+                }
+
+                $runningBalance = $runningBalance + $moneyIn - $moneyOut;
+                $docLink = $transaction->receipt_url;
+                $itemImages = data_get($transaction->metadata, 'item_images', []);
+
+                if (empty($docLink) && is_array($itemImages) && ! empty($itemImages)) {
+                    $docLink = $itemImages[0]['url'] ?? '';
+                }
+
+                $sheet->setCellValueExplicit("A{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("B{$row}", (string) $paymentTo, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("C{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("D{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("E{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("F{$row}", number_format($initialBalance, 2, '.', ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("G{$row}", $inflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("H{$row}", $outflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("I{$row}", (string) $displayDetails, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("J{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("K{$row}", (string) $docLink, DataType::TYPE_STRING);
+
+                $row++;
+            }
+        }
+
+        foreach (range('A', 'K') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        $fileName = 'petty-cash-' . $supervisor->name . '-' . now()->format('Ymd_His') . '.xlsx';
+        $tempPath = tempnam(sys_get_temp_dir(), 'pcx');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tempPath);
+
+        return response()->download($tempPath, $fileName)->deleteFileAfterSend(true);
     }
 
     private function normalizePhone(string $phone): string
