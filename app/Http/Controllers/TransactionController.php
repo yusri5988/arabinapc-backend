@@ -22,9 +22,13 @@ class TransactionController extends Controller
                     'id' => $transaction->id,
                     'type' => $transaction->type,
                     'amount' => $transaction->amount,
+                    'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
+                    'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+                    'payment_to' => $transaction->payment_to,
                     'description' => $transaction->description,
                     'site_id' => $transaction->site_id,
                     'receipt_url' => $transaction->receipt_url,
+                    'metadata' => $transaction->metadata,
                     'date' => optional($transaction->date)->toDateString(),
                     'user' => [
                         'id' => $transaction->user?->id,
@@ -53,9 +57,13 @@ class TransactionController extends Controller
                     'id' => $transaction->id,
                     'type' => $transaction->type,
                     'amount' => $transaction->amount,
+                    'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
+                    'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+                    'payment_to' => $transaction->payment_to,
                     'description' => $transaction->description,
                     'site_id' => $transaction->site_id,
                     'receipt_url' => $transaction->receipt_url,
+                    'metadata' => $transaction->metadata,
                     'date' => optional($transaction->date)->toDateString(),
                 ];
             });

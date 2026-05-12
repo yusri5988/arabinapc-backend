@@ -32,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:supervisor')->group(function () {
         Route::get('/supervisor/ledger', [SupervisorController::class, 'ledger']);
         Route::post('/supervisor/expense', [SupervisorController::class, 'expense']);
+        Route::post('/supervisor/process-item-image', [SupervisorController::class, 'processItemImage']);
         Route::post('/supervisor/process-receipt', [SupervisorController::class, 'processReceipt']);
     });
 });

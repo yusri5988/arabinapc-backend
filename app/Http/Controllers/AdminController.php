@@ -97,6 +97,7 @@ class AdminController extends Controller
                 'user_id' => $supervisor->id,
                 'type' => 'topup',
                 'amount' => $request->amount,
+                'payment_to' => 'Supervisor Topup',
                 'description' => 'Duit diterima daripada Admin: '.$admin->name,
                 'date' => now(),
                 'metadata' => [

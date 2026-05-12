@@ -8,6 +8,7 @@ readonly class ReceiptExtractionDTO
         public string $date,
         public float $amount,
         public string $description,
+        public string $paymentTo,
         public string $receiptUrl,
         public ?string $error = null,
     ) {
@@ -19,6 +20,7 @@ readonly class ReceiptExtractionDTO
             date: (string) ($data['date'] ?? now()->format('Y-m-d')),
             amount: (float) ($data['amount'] ?? 0),
             description: (string) ($data['description'] ?? 'Perbelanjaan resit'),
+            paymentTo: (string) ($data['payment_to'] ?? $data['paymentTo'] ?? ''),
             receiptUrl: $receiptUrl,
         );
     }
@@ -29,6 +31,7 @@ readonly class ReceiptExtractionDTO
             date: now()->format('Y-m-d'),
             amount: 0.00,
             description: $description,
+            paymentTo: '',
             receiptUrl: $receiptUrl,
             error: $error,
         );
@@ -40,6 +43,7 @@ readonly class ReceiptExtractionDTO
             'date' => $this->date,
             'amount' => $this->amount,
             'description' => $this->description,
+            'payment_to' => $this->paymentTo,
             'receipt_url' => $this->receiptUrl,
             'error' => $this->error,
         ];

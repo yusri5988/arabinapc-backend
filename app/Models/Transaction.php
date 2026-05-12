@@ -14,6 +14,8 @@ class Transaction extends Model
         'user_id',
         'type',
         'amount',
+        'payment_to',
+        'details',
         'description',
         'site_id',
         'receipt_url',

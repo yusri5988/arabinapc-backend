@@ -119,7 +119,7 @@ class ReceiptProcessingService
                 [
                     'parts' => [
                         [
-                            'text' => "Extract the Date, Total Amount, and a short Description (in Malay) from this receipt. Return ONLY a valid JSON object with keys: date (YYYY-MM-DD), amount (float), description (string). If you can't find something, use today's date or 0.00.",
+                            'text' => "Extract the Date, Total Amount, Payment To / Payee, and a short Description (in Malay) from this receipt. Return ONLY a valid JSON object with keys: date (YYYY-MM-DD), amount (float), payment_to (string), description (string). If you can't find something, use today's date, 0.00, or an empty string.",
                         ],
                         [
                             'inline_data' => [
