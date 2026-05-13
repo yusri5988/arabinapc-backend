@@ -164,7 +164,6 @@ class AdminController extends Controller
         } else {
             foreach ($transactions as $transaction) {
                 $amount = (float) $transaction->amount;
-                $initialBalance = $runningBalance;
 
                 if ($transaction->type === 'topup') {
                     $moneyIn = $amount;
@@ -183,6 +182,7 @@ class AdminController extends Controller
                 }
 
                 $runningBalance = $runningBalance + $moneyIn - $moneyOut;
+                $balance = $runningBalance;
                 $docLink = $transaction->receipt_url;
                 $itemImages = data_get($transaction->metadata, 'item_images', []);
 
@@ -195,7 +195,7 @@ class AdminController extends Controller
                 $sheet->setCellValueExplicit("C{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("D{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("E{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("F{$row}", number_format($initialBalance, 2, '.', ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("F{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("G{$row}", $inflowType, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("H{$row}", $outflowType, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("I{$row}", (string) $displayDetails, DataType::TYPE_STRING);
