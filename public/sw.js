@@ -1,9 +1,8 @@
-const CACHE_NAME = 'arabina-pc-v2';
+const CACHE_NAME = 'arabina-pc-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/src/main.jsx',
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,12 +31,42 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('/api/')) return;
   if (event.request.url.includes('/src/')) return;
+  if (event.request.url.includes('/receipts/')) return;
+  if (event.request.url.includes('/expense-items/')) return;
+  if (event.request.url.includes('/storage/')) return;
+  if (event.request.destination === 'image') return;
+
+  const acceptsHtml = event.request.headers.get('accept')?.includes('text/html');
+  const shouldNetworkFirst =
+    event.request.mode === 'navigate' ||
+    acceptsHtml ||
+    ['script', 'style', 'worker'].includes(event.request.destination);
+
+  if (shouldNetworkFirst) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html') && !contentType.includes('javascript') && !contentType.includes('css') && !contentType.includes('json')) {
           return response;
         }
         const responseToCache = response.clone();
