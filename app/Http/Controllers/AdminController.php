@@ -145,12 +145,13 @@ class AdminController extends Controller
             'Outflow type',
             'Details',
             'Month',
+            'Site ID',
             'Doc.Link',
         ];
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:K1');
+        $headerStyle = $sheet->getStyle('A1:L1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -200,13 +201,14 @@ class AdminController extends Controller
                 $sheet->setCellValueExplicit("H{$row}", $outflowType, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("I{$row}", (string) $displayDetails, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("J{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("K{$row}", (string) $docLink, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("K{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("L{$row}", (string) $docLink, DataType::TYPE_STRING);
 
                 $row++;
             }
         }
 
-        foreach (range('A', 'K') as $column) {
+        foreach (range('A', 'L') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
