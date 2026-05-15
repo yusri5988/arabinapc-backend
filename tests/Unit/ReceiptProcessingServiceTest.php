@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\DTOs\ReceiptExtractionDTO;
+use App\Services\GoogleDriveService;
 use App\Services\ReceiptProcessingService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -11,6 +12,16 @@ use Tests\TestCase;
 
 class ReceiptProcessingServiceTest extends TestCase
 {
+    private function service(): ReceiptProcessingService
+    {
+        return new ReceiptProcessingService(new class extends GoogleDriveService {
+            public function upload(UploadedFile $file, string $path = 'receipts')
+            {
+                return false;
+            }
+        });
+    }
+
     public function test_process_returns_dto_when_api_key_missing(): void
     {
         config(['services.gemini.api_key' => '']);
@@ -18,8 +29,7 @@ class ReceiptProcessingServiceTest extends TestCase
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
@@ -41,7 +51,7 @@ class ReceiptProcessingServiceTest extends TestCase
                         'content' => [
                             'parts' => [
                                 [
-                                    'text' => '{"date": "2024-02-10", "amount": 35.50, "description": "Makan tengah hari"}',
+                                    'text' => '{"date": "2024-02-10", "amount": 35.50, "payment_to": "Kedai Ali", "description": "Makan tengah hari"}',
                                 ],
                             ],
                         ],
@@ -50,12 +60,12 @@ class ReceiptProcessingServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals('2024-02-10', $result->date);
         $this->assertEquals(35.50, $result->amount);
+        $this->assertEquals('Kedai Ali', $result->paymentTo);
         $this->assertEquals('Makan tengah hari', $result->description);
     }
 
@@ -73,7 +83,7 @@ class ReceiptProcessingServiceTest extends TestCase
                         'content' => [
                             'parts' => [
                                 [
-                                    'text' => "```json\n{\"date\": \"2024-05-01\", \"amount\": 120.00, \"description\": \"Beli barang elektrik\"}\n```",
+                                    'text' => "```json\n{\"date\": \"2024-05-01\", \"amount\": 120.00, \"payment_to\": \"Hardware ABC\", \"description\": \"Beli barang elektrik\"}\n```",
                                 ],
                             ],
                         ],
@@ -82,11 +92,11 @@ class ReceiptProcessingServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $this->assertEquals('2024-05-01', $result->date);
         $this->assertEquals(120.00, $result->amount);
+        $this->assertEquals('Hardware ABC', $result->paymentTo);
         $this->assertEquals('Beli barang elektrik', $result->description);
     }
 
@@ -101,8 +111,7 @@ class ReceiptProcessingServiceTest extends TestCase
             'generativelanguage.googleapis.com/*' => Http::response(['error' => 'Service unavailable'], 500),
         ]);
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
@@ -134,8 +143,7 @@ class ReceiptProcessingServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
@@ -167,8 +175,7 @@ class ReceiptProcessingServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new ReceiptProcessingService();
-        $result = $service->process($file);
+        $result = $this->service()->process($file);
 
         $files = Storage::disk('public')->files('receipts');
         $this->assertNotEmpty($files);

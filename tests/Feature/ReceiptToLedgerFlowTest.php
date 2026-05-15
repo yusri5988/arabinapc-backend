@@ -36,6 +36,14 @@ class ReceiptToLedgerFlowTest extends TestCase
 
         $supervisor = User::factory()->supervisor()->withBalance(500)->create();
 
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         $processResponse = $this->actingAs($supervisor)
@@ -55,6 +63,8 @@ class ReceiptToLedgerFlowTest extends TestCase
         $expenseResponse = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
                 'amount' => $aiData['amount'],
+                'payment_to' => $aiData['payment_to'] ?? 'Vendor',
+                'details' => 'Site Meal',
                 'description' => $aiData['description'],
                 'site_id' => 'A102',
                 'date' => $aiData['date'],
@@ -71,7 +81,7 @@ class ReceiptToLedgerFlowTest extends TestCase
             'site_id' => 'A102',
         ]);
 
-        $transaction = Transaction::first();
+        $transaction = Transaction::where('type', 'expense')->first();
         $this->assertEquals(45.90, (float) $transaction->amount);
         $this->assertEquals('2024-03-15', $transaction->date->format('Y-m-d'));
 
@@ -82,7 +92,7 @@ class ReceiptToLedgerFlowTest extends TestCase
 
         $ledgerResponse->assertStatus(200)
             ->assertJsonPath('balance', 454.10)
-            ->assertJsonCount(1, 'transactions');
+            ->assertJsonCount(2, 'transactions');
 
         $transactions = $ledgerResponse->json('transactions');
 
@@ -99,6 +109,14 @@ class ReceiptToLedgerFlowTest extends TestCase
         Storage::fake('public');
 
         $supervisor = User::factory()->supervisor()->withBalance(1000)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 1000,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
 
         $receiptData = [
             ['date' => '2024-01-10', 'amount' => 30.00, 'description' => 'Beli kopi'],
@@ -141,6 +159,8 @@ class ReceiptToLedgerFlowTest extends TestCase
             $this->actingAs($supervisor)
                 ->postJson('/api/supervisor/expense', [
                     'amount' => $aiData['amount'],
+                    'payment_to' => $aiData['payment_to'] ?? 'Vendor',
+                    'details' => 'Others',
                     'description' => $aiData['description'],
                     'site_id' => 'A102',
                     'date' => $aiData['date'],
@@ -152,7 +172,7 @@ class ReceiptToLedgerFlowTest extends TestCase
             ->getJson('/api/supervisor/ledger');
 
         $ledgerResponse->assertStatus(200)
-            ->assertJsonCount(3, 'transactions');
+            ->assertJsonCount(4, 'transactions');
 
         $freshBalance = (float) $supervisor->fresh()->balance;
         $this->assertEqualsWithDelta(774.50, $freshBalance, 0.01);

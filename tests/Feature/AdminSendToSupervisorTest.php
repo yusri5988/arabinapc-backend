@@ -16,6 +16,14 @@ class AdminSendToSupervisorTest extends TestCase
         $admin = User::factory()->admin()->withBalance(0)->create(['name' => 'Admin Arabina']);
         $supervisor = User::factory()->supervisor()->withBalance(10)->create();
 
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 10,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
         $response = $this->actingAs($admin)
             ->postJson('/api/admin/topup', [
                 'supervisor_id' => $supervisor->id,
@@ -28,13 +36,12 @@ class AdminSendToSupervisorTest extends TestCase
         $this->assertEquals(0, (float) $admin->fresh()->balance);
         $this->assertEquals(135.50, (float) $supervisor->fresh()->balance);
 
-        $transaction = Transaction::first();
+        $transaction = Transaction::where('description', 'Duit diterima daripada Admin: Admin Arabina')->first();
 
         $this->assertNotNull($transaction);
         $this->assertEquals($supervisor->id, $transaction->user_id);
         $this->assertEquals('topup', $transaction->type);
         $this->assertEquals(125.50, (float) $transaction->amount);
-        $this->assertEquals('Duit diterima daripada Admin: Admin Arabina', $transaction->description);
         $this->assertEquals('admin_send_to_supervisor', $transaction->metadata['source']);
         $this->assertEquals($admin->id, $transaction->metadata['sent_by_user_id']);
     }

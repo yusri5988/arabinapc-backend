@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,9 +16,10 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AdminController extends Controller
 {
-    public function dashboard()
+    public function dashboard(SupervisorBalanceService $balanceService)
     {
         $supervisors = User::where('role', 'supervisor')->get();
+        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
         $supervisor_total = $supervisors->sum('balance');
         $supervisorTransactions = Transaction::whereHas('user', function ($query) {
             $query->where('role', 'supervisor');
@@ -31,9 +33,10 @@ class AdminController extends Controller
         ]);
     }
 
-    public function listSupervisors()
+    public function listSupervisors(SupervisorBalanceService $balanceService)
     {
         $supervisors = User::where('role', 'supervisor')->get();
+        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
 
         return response()->json(['supervisors' => $supervisors]);
     }
@@ -81,7 +84,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function topup(Request $request)
+    public function topup(Request $request, SupervisorBalanceService $balanceService)
     {
         $request->validate([
             'supervisor_id' => [
@@ -94,8 +97,8 @@ class AdminController extends Controller
         $admin = $request->user();
         $supervisor = User::findOrFail($request->supervisor_id);
 
-        DB::transaction(function () use ($admin, $supervisor, $request) {
-            $supervisor->increment('balance', $request->amount);
+        $balance = DB::transaction(function () use ($admin, $supervisor, $request, $balanceService) {
+            $supervisor = User::whereKey($supervisor->id)->lockForUpdate()->firstOrFail();
 
             Transaction::create([
                 'user_id' => $supervisor->id,
@@ -109,11 +112,13 @@ class AdminController extends Controller
                     'sent_by_user_id' => $admin->id,
                 ],
             ]);
+
+            return $balanceService->recalculate($supervisor);
         });
 
         return response()->json([
             'message' => 'Duit berjaya dihantar kepada supervisor.',
-            'balance' => $supervisor->fresh()->balance,
+            'balance' => $balance,
         ]);
     }
 
@@ -126,9 +131,7 @@ class AdminController extends Controller
             ->orderBy('id')
             ->get();
 
-        $totalIn = $transactions->where('type', 'topup')->sum('amount');
-        $totalOut = $transactions->where('type', 'expense')->sum('amount');
-        $openingBalance = (float) $supervisor->balance - (float) $totalIn + (float) $totalOut;
+        $openingBalance = 0;
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();

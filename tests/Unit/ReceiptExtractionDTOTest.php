@@ -13,6 +13,7 @@ class ReceiptExtractionDTOTest extends TestCase
             'date' => '2024-01-15',
             'amount' => 25.50,
             'description' => 'Makanan tapak',
+            'payment_to' => 'Kedai Makan Ali',
         ];
 
         $dto = ReceiptExtractionDTO::fromArray($data, 'https://example.com/receipt.jpg');
@@ -20,6 +21,7 @@ class ReceiptExtractionDTOTest extends TestCase
         $this->assertEquals('2024-01-15', $dto->date);
         $this->assertEquals(25.50, $dto->amount);
         $this->assertEquals('Makanan tapak', $dto->description);
+        $this->assertEquals('Kedai Makan Ali', $dto->paymentTo);
         $this->assertEquals('https://example.com/receipt.jpg', $dto->receiptUrl);
     }
 
@@ -30,6 +32,7 @@ class ReceiptExtractionDTOTest extends TestCase
         $this->assertNotEmpty($dto->date);
         $this->assertEquals(0.0, $dto->amount);
         $this->assertEquals('Perbelanjaan resit', $dto->description);
+        $this->assertEquals('', $dto->paymentTo);
         $this->assertEquals('https://example.com/receipt.jpg', $dto->receiptUrl);
     }
 
@@ -44,6 +47,7 @@ class ReceiptExtractionDTOTest extends TestCase
         $this->assertNotEmpty($dto->date);
         $this->assertEquals(100.00, $dto->amount);
         $this->assertEquals('Perbelanjaan resit', $dto->description);
+        $this->assertEquals('', $dto->paymentTo);
     }
 
     public function test_to_array_returns_correct_structure(): void
@@ -52,6 +56,7 @@ class ReceiptExtractionDTOTest extends TestCase
             date: '2024-03-20',
             amount: 50.75,
             description: 'Beli barang dapur',
+            paymentTo: 'Pasar Mini Mubarak',
             receiptUrl: '/storage/receipts/test.jpg',
         );
 
@@ -61,6 +66,7 @@ class ReceiptExtractionDTOTest extends TestCase
             'date' => '2024-03-20',
             'amount' => 50.75,
             'description' => 'Beli barang dapur',
+            'payment_to' => 'Pasar Mini Mubarak',
             'receipt_url' => '/storage/receipts/test.jpg',
             'error' => null,
         ], $array);

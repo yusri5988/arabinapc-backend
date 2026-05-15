@@ -4,20 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Services\ExpenseItemImageService;
 use App\Services\ReceiptProcessingService;
+use App\Services\SupervisorBalanceService;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SupervisorController extends Controller
 {
-    public function ledger(Request $request)
+    public function ledger(Request $request, SupervisorBalanceService $balanceService)
     {
         $transactions = Transaction::where('user_id', $request->user()->id)
             ->orderBy('date', 'desc')
             ->get();
 
         return response()->json([
-            'balance' => $request->user()->balance,
+            'balance' => $balanceService->calculate($request->user()->id),
             'transactions' => $transactions->map(function (Transaction $transaction) {
                 return [
                     'id' => $transaction->id,
@@ -36,7 +39,7 @@ class SupervisorController extends Controller
         ]);
     }
 
-    public function expense(Request $request)
+    public function expense(Request $request, SupervisorBalanceService $balanceService)
     {
         $request->validate([
             'amount' => 'required|numeric|min:0.01',
@@ -51,14 +54,25 @@ class SupervisorController extends Controller
             'item_images.*.name' => 'required_with:item_images|string',
         ]);
 
-        $user = $request->user();
+        DB::transaction(function () use ($request, $balanceService) {
+            $user = User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
 
-        if ($user->balance < $request->amount) {
-            return response()->json(['message' => 'Baki tidak mencukupi.'], 400);
-        }
+            if ($balanceService->calculate($user->id) < (float) $request->amount) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Baki tidak mencukupi.',
+                ]);
+            }
 
-        DB::transaction(function () use ($user, $request) {
-            $user->decrement('balance', $request->amount);
+            $balanceService->assertLedgerWillNotBeNegative(
+                $user->id,
+                null,
+                [
+                    'type' => 'expense',
+                    'amount' => $request->amount,
+                    'date' => $request->date,
+                ],
+                'Perbelanjaan tidak boleh direkodkan kerana akan menyebabkan running balance negatif.'
+            );
 
             Transaction::create([
                 'user_id' => $user->id,
@@ -74,6 +88,8 @@ class SupervisorController extends Controller
                     'item_images' => $request->item_images ?? [],
                 ],
             ]);
+
+            $balanceService->recalculate($user);
         });
 
         return response()->json(['message' => 'Perbelanjaan berjaya direkodkan.']);

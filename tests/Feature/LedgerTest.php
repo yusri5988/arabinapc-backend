@@ -17,9 +17,18 @@ class LedgerTest extends TestCase
 
         Transaction::factory()->create([
             'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
+        Transaction::factory()->create([
+            'user_id' => $supervisor->id,
             'type' => 'expense',
             'amount' => 45.90,
             'description' => 'Makan minum site',
+            'details' => 'Site Meal',
             'site_id' => 'A102',
             'receipt_url' => '/storage/receipts/receipt.jpg',
             'date' => '2024-03-15',
@@ -30,7 +39,7 @@ class LedgerTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('balance', 454.10)
-            ->assertJsonCount(1, 'transactions')
+            ->assertJsonCount(2, 'transactions')
             ->assertJsonPath('transactions.0.description', 'Makan minum site')
             ->assertJsonPath('transactions.0.amount', '45.90')
             ->assertJsonPath('transactions.0.receipt_url', config('app.api_url') . '/receipts/receipt.jpg');
@@ -61,7 +70,7 @@ class LedgerTest extends TestCase
             ->getJson('/api/supervisor/ledger');
 
         $response->assertStatus(200)
-            ->assertJsonPath('balance', 500)
+            ->assertJsonPath('balance', 0)
             ->assertJsonCount(0, 'transactions');
     }
 
@@ -71,9 +80,18 @@ class LedgerTest extends TestCase
 
         Transaction::factory()->create([
             'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 400,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
+        Transaction::factory()->create([
+            'user_id' => $supervisor->id,
             'type' => 'expense',
             'amount' => 30,
             'description' => 'First expense',
+            'details' => 'Others',
             'site_id' => 'A101',
             'date' => '2024-01-10',
         ]);
@@ -83,6 +101,7 @@ class LedgerTest extends TestCase
             'type' => 'expense',
             'amount' => 50,
             'description' => 'Second expense',
+            'details' => 'Others',
             'site_id' => 'A102',
             'date' => '2024-03-20',
         ]);
@@ -92,6 +111,7 @@ class LedgerTest extends TestCase
             'type' => 'expense',
             'amount' => 20,
             'description' => 'Third expense',
+            'details' => 'Others',
             'site_id' => 'A103',
             'date' => '2024-02-15',
         ]);
@@ -100,10 +120,11 @@ class LedgerTest extends TestCase
             ->getJson('/api/supervisor/ledger');
 
         $response->assertStatus(200)
-            ->assertJsonCount(3, 'transactions')
+            ->assertJsonCount(4, 'transactions')
             ->assertJsonPath('transactions.0.description', 'Second expense')
             ->assertJsonPath('transactions.1.description', 'Third expense')
-            ->assertJsonPath('transactions.2.description', 'First expense');
+            ->assertJsonPath('transactions.2.description', 'First expense')
+            ->assertJsonPath('transactions.3.description', 'Opening Balance');
     }
 
     public function test_ledger_only_shows_own_transactions(): void
@@ -113,11 +134,20 @@ class LedgerTest extends TestCase
 
         Transaction::factory()->create([
             'user_id' => $supervisor1->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Supervisor 1 opening balance',
+            'date' => '2024-01-01',
+        ]);
+
+        Transaction::factory()->create([
+            'user_id' => $supervisor1->id,
             'type' => 'expense',
             'amount' => 100,
             'description' => 'Supervisor 1 expense',
+            'details' => 'Others',
             'site_id' => 'A101',
-            'date' => '2024-01-01',
+            'date' => '2024-01-02',
         ]);
 
         Transaction::factory()->create([
@@ -125,6 +155,7 @@ class LedgerTest extends TestCase
             'type' => 'expense',
             'amount' => 200,
             'description' => 'Supervisor 2 expense',
+            'details' => 'Others',
             'site_id' => 'B202',
             'date' => '2024-02-02',
         ]);
@@ -133,7 +164,8 @@ class LedgerTest extends TestCase
             ->getJson('/api/supervisor/ledger');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'transactions')
-            ->assertJsonPath('transactions.0.description', 'Supervisor 1 expense');
+            ->assertJsonCount(2, 'transactions')
+            ->assertJsonPath('transactions.0.description', 'Supervisor 1 expense')
+            ->assertJsonPath('transactions.1.description', 'Supervisor 1 opening balance');
     }
 }

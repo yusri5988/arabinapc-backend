@@ -15,9 +15,19 @@ class ExpenseTest extends TestCase
     {
         $supervisor = User::factory()->supervisor()->withBalance(500)->create();
 
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
                 'amount' => 45.90,
+                'payment_to' => 'Kedai Makan',
+                'details' => 'Site Meal',
                 'description' => 'Makan minum site',
                 'site_id' => 'A102',
                 'date' => '2024-03-15',
@@ -35,9 +45,9 @@ class ExpenseTest extends TestCase
             'receipt_url' => '/storage/receipts/receipt.jpg',
         ]);
 
-        $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseCount('transactions', 2);
 
-        $transaction = Transaction::first();
+        $transaction = Transaction::where('type', 'expense')->first();
         $this->assertEquals(45.90, (float) $transaction->amount);
         $this->assertEquals('2024-03-15', $transaction->date->format('Y-m-d'));
 
@@ -75,15 +85,26 @@ class ExpenseTest extends TestCase
     {
         $supervisor = User::factory()->supervisor()->withBalance(20)->create();
 
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 20,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
                 'amount' => 50,
+                'payment_to' => 'Vendor',
+                'details' => 'Others',
                 'description' => 'Test',
                 'site_id' => 'A101',
                 'date' => '2024-01-01',
             ]);
 
-        $response->assertStatus(400)
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['amount'])
             ->assertJsonPath('message', 'Baki tidak mencukupi.');
 
         $this->assertEquals(20, $supervisor->fresh()->balance);
@@ -96,22 +117,33 @@ class ExpenseTest extends TestCase
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
                 'amount' => -10,
+                'details' => '',
                 'description' => '',
                 'site_id' => '',
                 'date' => '',
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['amount', 'description', 'site_id', 'date']);
+            ->assertJsonValidationErrors(['amount', 'details', 'description', 'site_id', 'date']);
     }
 
     public function test_expense_receipt_url_is_optional(): void
     {
         $supervisor = User::factory()->supervisor()->withBalance(500)->create();
 
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
                 'amount' => 30,
+                'payment_to' => 'Vendor',
+                'details' => 'Others',
                 'description' => 'Test tanpa resit',
                 'site_id' => 'B201',
                 'date' => '2024-04-01',

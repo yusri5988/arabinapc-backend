@@ -24,6 +24,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
         Route::get('/admin/supervisors', [AdminController::class, 'listSupervisors']);
         Route::get('/admin/transactions', [TransactionController::class, 'index']);
+        Route::post('/admin/transactions', [TransactionController::class, 'store']);
+        Route::put('/admin/transactions/{transaction}', [TransactionController::class, 'update']);
+        Route::delete('/admin/transactions/{transaction}', [TransactionController::class, 'destroy']);
         Route::get('/admin/supervisors/{supervisor}/transactions', [TransactionController::class, 'supervisorHistory']);
         Route::get('/admin/supervisors/{supervisor}/export-excel', [AdminController::class, 'exportSupervisorExcel']);
         Route::post('/admin/supervisors', [AdminController::class, 'createSupervisor']);
