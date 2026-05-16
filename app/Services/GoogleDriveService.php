@@ -12,13 +12,20 @@ class GoogleDriveService
      *
      * @param UploadedFile $file
      * @param string $path
+     * @param string|null $siteId
      * @return string|bool The file path on Google Drive or false on failure.
      */
-    public function upload(UploadedFile $file, string $path = 'receipts')
+    public function upload(UploadedFile $file, string $path = 'receipts', ?string $siteId = null)
     {
         try {
             $filename = time() . '_' . $file->getClientOriginalName();
-            $fullPath = $path . '/' . $filename;
+
+            if ($siteId !== null && $siteId !== '') {
+                $siteId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId);
+                $fullPath = $path . '/' . $siteId . '/' . $filename;
+            } else {
+                $fullPath = $path . '/' . $filename;
+            }
 
             // Use the 'google' disk configured in filesystems.php
             $stored = Storage::disk('google')->put($fullPath, file_get_contents($file));

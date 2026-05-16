@@ -12,9 +12,9 @@ class ExpenseItemImageService
         protected GoogleDriveService $googleDriveService
     ) {}
 
-    public function upload(UploadedFile $image): ExpenseItemImageDTO
+    public function upload(UploadedFile $image, ?string $siteId = null): ExpenseItemImageDTO
     {
-        $storedPath = $this->googleDriveService->upload($image, 'expense-items');
+        $storedPath = $this->googleDriveService->upload($image, 'expense-items', $siteId);
 
         if ($storedPath) {
             return ExpenseItemImageDTO::success(
@@ -23,14 +23,17 @@ class ExpenseItemImageService
             );
         }
 
-        $storedPath = $image->store('expense-items', 'public');
+        $localPath = $siteId !== null && $siteId !== ''
+            ? 'expense-items/' . preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
+            : 'expense-items';
+        $storedPath = $image->store($localPath, 'public');
 
         if (! $storedPath) {
             return ExpenseItemImageDTO::failed('Gagal simpan gambar barang.');
         }
 
         return ExpenseItemImageDTO::success(
-            imageUrl: rtrim(config('app.url', 'http://localhost'), '/') . '/expense-items/' . basename($storedPath),
+            imageUrl: Storage::disk('public')->url($storedPath),
             fileName: $image->getClientOriginalName(),
         );
     }

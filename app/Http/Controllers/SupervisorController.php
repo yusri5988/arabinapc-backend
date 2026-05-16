@@ -99,9 +99,13 @@ class SupervisorController extends Controller
     {
         $request->validate([
             'item_image' => 'required|image|max:20480',
+            'site_id' => 'required|string',
         ]);
 
-        $imageData = $expenseItemImageService->upload($request->file('item_image'));
+        $imageData = $expenseItemImageService->upload(
+            $request->file('item_image'),
+            $request->input('site_id')
+        );
 
         return response()->json($imageData->toArray());
     }
@@ -110,9 +114,13 @@ class SupervisorController extends Controller
     {
         $request->validate([
             'receipt' => 'required|image|max:20480',
+            'site_id' => 'required|string',
         ]);
 
-        $receiptData = $receiptProcessingService->process($request->file('receipt'));
+        $receiptData = $receiptProcessingService->process(
+            $request->file('receipt'),
+            $request->input('site_id')
+        );
 
         return response()->json($receiptData->toArray());
     }

@@ -18,15 +18,18 @@ class ReceiptProcessingService
         protected GoogleDriveService $googleDriveService
     ) {}
 
-    public function process(UploadedFile $receipt): ReceiptExtractionDTO
+    public function process(UploadedFile $receipt, ?string $siteId = null): ReceiptExtractionDTO
     {
-        $storedPath = $this->googleDriveService->upload($receipt, 'receipts');
+        $storedPath = $this->googleDriveService->upload($receipt, 'receipts', $siteId);
         
         if ($storedPath) {
             $receiptUrl = $this->googleDriveService->getUrl($storedPath);
         } else {
             // Fallback to local if Google Drive fails
-            $storedPath = $receipt->store('receipts', 'public');
+            $localPath = $siteId !== null && $siteId !== ''
+                ? 'receipts/' . preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
+                : 'receipts';
+            $storedPath = $receipt->store($localPath, 'public');
             $receiptUrl = Storage::disk('public')->url($storedPath);
         }
 
