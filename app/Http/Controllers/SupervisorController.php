@@ -46,7 +46,7 @@ class SupervisorController extends Controller
             'payment_to' => 'nullable|string',
             'details' => 'required|string',
             'description' => 'required|string',
-            'site_id' => 'required|string',
+            'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
             'date' => 'required|date',
             'receipt_url' => 'nullable|string',
             'item_images' => 'nullable|array|max:4',
@@ -99,7 +99,7 @@ class SupervisorController extends Controller
     {
         $request->validate([
             'item_image' => 'required|image|max:20480',
-            'site_id' => 'required|string',
+            'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
         ]);
 
         $imageData = $expenseItemImageService->upload(
@@ -114,7 +114,7 @@ class SupervisorController extends Controller
     {
         $request->validate([
             'receipt' => 'required|image|max:20480',
-            'site_id' => 'required|string',
+            'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
         ]);
 
         $receiptData = $receiptProcessingService->process(
