@@ -12,7 +12,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('images:sync-google-drive')
+            ->dailyAt('02:00')
+            ->withoutOverlapping();
     }
 
     /**

@@ -14,8 +14,9 @@ class ReceiptProcessingServiceTest extends TestCase
 {
     private function service(): ReceiptProcessingService
     {
-        return new ReceiptProcessingService(new class extends GoogleDriveService {
-            public function upload(UploadedFile $file, string $path = 'receipts')
+        return new ReceiptProcessingService(new class extends GoogleDriveService
+        {
+            public function upload(UploadedFile $file, string $path = 'receipts', ?string $siteId = null)
             {
                 return false;
             }

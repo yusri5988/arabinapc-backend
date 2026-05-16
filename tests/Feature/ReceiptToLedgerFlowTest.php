@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReceiptToLedgerFlowTest extends TestCase
@@ -49,6 +49,7 @@ class ReceiptToLedgerFlowTest extends TestCase
         $processResponse = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [
                 'receipt' => $file,
+                'site_id' => 'A102',
             ]);
 
         $processResponse->assertStatus(200);
@@ -150,7 +151,10 @@ class ReceiptToLedgerFlowTest extends TestCase
             $uploadedFile = UploadedFile::fake()->image($file);
 
             $processResponse = $this->actingAs($supervisor)
-                ->postJson('/api/supervisor/process-receipt', ['receipt' => $uploadedFile]);
+                ->postJson('/api/supervisor/process-receipt', [
+                    'receipt' => $uploadedFile,
+                    'site_id' => 'A102',
+                ]);
 
             $processResponse->assertStatus(200);
 

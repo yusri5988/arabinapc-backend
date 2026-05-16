@@ -3,10 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ProcessReceiptTest extends TestCase
@@ -39,6 +39,7 @@ class ProcessReceiptTest extends TestCase
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [
                 'receipt' => $file,
+                'site_id' => 'A102',
             ]);
 
         $response->assertStatus(200)
@@ -47,7 +48,7 @@ class ProcessReceiptTest extends TestCase
             ->assertJsonPath('description', 'Makan minum site')
             ->assertJsonStructure(['date', 'amount', 'description', 'receipt_url']);
 
-        $files = Storage::disk('public')->files('receipts');
+        $files = Storage::disk('public')->allFiles('receipts/A102');
         $this->assertNotEmpty($files);
     }
 
@@ -70,6 +71,7 @@ class ProcessReceiptTest extends TestCase
         $response = $this->actingAs($admin)
             ->postJson('/api/supervisor/process-receipt', [
                 'receipt' => $file,
+                'site_id' => 'A102',
             ]);
 
         $response->assertStatus(403);
@@ -80,7 +82,9 @@ class ProcessReceiptTest extends TestCase
         $supervisor = User::factory()->supervisor()->create();
 
         $response = $this->actingAs($supervisor)
-            ->postJson('/api/supervisor/process-receipt', []);
+            ->postJson('/api/supervisor/process-receipt', [
+                'site_id' => 'A102',
+            ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors('receipt');
@@ -96,6 +100,7 @@ class ProcessReceiptTest extends TestCase
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [
                 'receipt' => $file,
+                'site_id' => 'A102',
             ]);
 
         $response->assertStatus(422)
@@ -115,6 +120,7 @@ class ProcessReceiptTest extends TestCase
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [
                 'receipt' => $file,
+                'site_id' => 'A102',
             ]);
 
         $response->assertStatus(200)
