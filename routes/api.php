@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\SupervisorController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -14,7 +15,10 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $userId = $request->user()->id;
+        return Cache::remember("ui:user:{$userId}", 600, function () use ($request) {
+            return $request->user();
+        });
     });
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::put('/password', [AuthController::class, 'updatePassword']);
@@ -32,6 +36,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/supervisors', [AdminController::class, 'createSupervisor']);
         Route::post('/admin/supervisors/{supervisor}/reset-password', [AdminController::class, 'resetStaffPassword']);
         Route::post('/admin/topup', [AdminController::class, 'topup']);
+        Route::delete('/admin/cache/clear', function () {
+            Cache::flush();
+            return response()->json(['message' => 'Cache berjaya dikosongkan.']);
+        });
     });
 
     // Supervisor only routes

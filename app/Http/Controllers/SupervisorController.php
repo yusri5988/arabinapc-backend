@@ -8,6 +8,7 @@ use App\Services\SupervisorBalanceService;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +16,8 @@ class SupervisorController extends Controller
 {
     public function ledger(Request $request, SupervisorBalanceService $balanceService)
     {
+        // Note: ledger is NOT cached — it's real-time financial data
+        // Cache is only for UI elements (dashboard stats, supervisor list, user profile)
         $transactions = Transaction::where('user_id', $request->user()->id)
             ->orderBy('date', 'desc')
             ->get();
@@ -54,8 +57,10 @@ class SupervisorController extends Controller
             'item_images.*.name' => 'required_with:item_images|string',
         ]);
 
-        DB::transaction(function () use ($request, $balanceService) {
-            $user = User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
+        $supervisorId = $request->user()->id;
+
+        DB::transaction(function () use ($request, $balanceService, $supervisorId) {
+            $user = User::whereKey($supervisorId)->lockForUpdate()->firstOrFail();
 
             if ($balanceService->calculate($user->id) < (float) $request->amount) {
                 throw ValidationException::withMessages([
@@ -91,6 +96,9 @@ class SupervisorController extends Controller
 
             $balanceService->recalculate($user);
         });
+
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:supervisor:ledger:{$supervisorId}");
 
         return response()->json(['message' => 'Perbelanjaan berjaya direkodkan.']);
     }

@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -133,6 +134,9 @@ class TransactionController extends Controller
             return $transaction->fresh('user');
         });
 
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:supervisor:ledger:{$transaction->user_id}");
+
         return response()->json([
             'message' => 'Transaction berjaya dicipta.',
             'transaction' => $this->formatTransaction($transaction),
@@ -182,6 +186,9 @@ class TransactionController extends Controller
             return $transaction->fresh('user');
         });
 
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:supervisor:ledger:{$transaction->user_id}");
+
         return response()->json([
             'message' => 'Transaction berjaya dikemaskini.',
             'transaction' => $this->formatTransaction($transaction),
@@ -203,9 +210,13 @@ class TransactionController extends Controller
                 'Transaction tidak boleh dipadam kerana akan menyebabkan running balance negatif dalam ledger/Excel.'
             );
 
+            $supervisorId = $transaction->user_id;
             $transaction->delete();
             $balanceService->recalculate($supervisor);
         });
+
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:supervisor:ledger:{$supervisorId}");
 
         return response()->json([
             'message' => 'Transaction berjaya dipadam.',

@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -49,6 +50,8 @@ class AuthController extends Controller
             'name' => $request->name,
             'phone' => $request->phone,
         ]);
+
+        Cache::forget("ui:user:{$user->id}");
 
         return response()->json([
             'message' => 'Profil berjaya dikemaskini.',

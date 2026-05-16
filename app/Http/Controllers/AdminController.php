@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -18,27 +19,31 @@ class AdminController extends Controller
 {
     public function dashboard(SupervisorBalanceService $balanceService)
     {
-        $supervisors = User::where('role', 'supervisor')->get();
-        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
-        $supervisor_total = $supervisors->sum('balance');
-        $supervisorTransactions = Transaction::whereHas('user', function ($query) {
-            $query->where('role', 'supervisor');
-        });
+        return Cache::remember('ui:admin:dashboard', 120, function () use ($balanceService) {
+            $supervisors = User::where('role', 'supervisor')->get();
+            $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
+            $supervisor_total = $supervisors->sum('balance');
+            $supervisorTransactions = Transaction::whereHas('user', function ($query) {
+                $query->where('role', 'supervisor');
+            });
 
-        return response()->json([
-            'supervisors' => $supervisors,
-            'total_supervisor_cash' => $supervisor_total,
-            'total_supervisor_in' => (clone $supervisorTransactions)->where('type', 'topup')->sum('amount'),
-            'total_supervisor_out' => (clone $supervisorTransactions)->where('type', 'expense')->sum('amount'),
-        ]);
+            return [
+                'supervisors' => $supervisors,
+                'total_supervisor_cash' => $supervisor_total,
+                'total_supervisor_in' => (clone $supervisorTransactions)->where('type', 'topup')->sum('amount'),
+                'total_supervisor_out' => (clone $supervisorTransactions)->where('type', 'expense')->sum('amount'),
+            ];
+        });
     }
 
     public function listSupervisors(SupervisorBalanceService $balanceService)
     {
-        $supervisors = User::where('role', 'supervisor')->get();
-        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
+        return Cache::remember('ui:admin:supervisors', 1800, function () use ($balanceService) {
+            $supervisors = User::where('role', 'supervisor')->get();
+            $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
 
-        return response()->json(['supervisors' => $supervisors]);
+            return ['supervisors' => $supervisors];
+        });
     }
 
     public function createSupervisor(Request $request)
@@ -63,6 +68,9 @@ class AdminController extends Controller
             'balance' => 0,
         ]);
 
+        Cache::forget('ui:admin:supervisors');
+        Cache::forget('ui:admin:dashboard');
+
         return response()->json($user, 201);
     }
 
@@ -73,6 +81,8 @@ class AdminController extends Controller
         $supervisor->update([
             'password' => Hash::make('123456'),
         ]);
+
+        Cache::forget("ui:user:{$supervisor->id}");
 
         return response()->json([
             'message' => 'Password staff berjaya direset kepada 123456.',
@@ -115,6 +125,11 @@ class AdminController extends Controller
 
             return $balanceService->recalculate($supervisor);
         });
+
+        Cache::forget('ui:admin:supervisors');
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:user:{$supervisor->id}");
+        Cache::forget("ui:supervisor:ledger:{$supervisor->id}");
 
         return response()->json([
             'message' => 'Duit berjaya dihantar kepada supervisor.',
