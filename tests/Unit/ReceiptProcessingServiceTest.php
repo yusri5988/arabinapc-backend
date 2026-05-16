@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\DTOs\ReceiptExtractionDTO;
-use App\Services\GoogleDriveService;
 use App\Services\ReceiptProcessingService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -14,13 +13,7 @@ class ReceiptProcessingServiceTest extends TestCase
 {
     private function service(): ReceiptProcessingService
     {
-        return new ReceiptProcessingService(new class extends GoogleDriveService
-        {
-            public function upload(UploadedFile $file, string $path = 'receipts', ?string $siteId = null)
-            {
-                return false;
-            }
-        });
+        return new ReceiptProcessingService();
     }
 
     public function test_process_returns_dto_when_api_key_missing(): void
