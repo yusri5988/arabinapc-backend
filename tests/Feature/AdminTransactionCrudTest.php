@@ -125,7 +125,7 @@ class AdminTransactionCrudTest extends TestCase
         $this->assertEquals(200, (float) $supervisor->fresh()->balance);
     }
 
-    public function test_admin_cannot_delete_transaction_if_running_balance_would_be_negative(): void
+    public function test_admin_cannot_delete_topup_if_running_balance_would_be_negative(): void
     {
         $admin = User::factory()->admin()->create();
         $supervisor = User::factory()->supervisor()->withBalance(50)->create();
@@ -155,6 +155,48 @@ class AdminTransactionCrudTest extends TestCase
 
         $this->assertDatabaseHas('transactions', ['id' => $topup->id]);
         $this->assertEquals(50, (float) $supervisor->fresh()->balance);
+    }
+
+    public function test_admin_can_delete_expense_even_if_existing_ledger_has_negative_running_balance(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(50)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 20,
+            'details' => 'Early expense',
+            'description' => 'Before any topup',
+            'site_id' => 'A101',
+            'date' => '2024-01-01',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 100,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-02',
+        ]);
+
+        $expenseToDelete = Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 30,
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'date' => '2024-01-03',
+        ]);
+
+        $this->actingAs($admin)
+            ->deleteJson("/api/admin/transactions/{$expenseToDelete->id}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Transaction berjaya dipadam.');
+
+        $this->assertDatabaseMissing('transactions', ['id' => $expenseToDelete->id]);
+        $this->assertEquals(80, (float) $supervisor->fresh()->balance);
     }
 
     public function test_admin_cannot_create_expense_that_starts_ledger_negative(): void

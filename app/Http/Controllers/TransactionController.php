@@ -199,18 +199,21 @@ class TransactionController extends Controller
     {
         abort_unless($transaction->user?->role === 'supervisor', 404);
 
-        DB::transaction(function () use ($transaction, $balanceService) {
+        $supervisorId = $transaction->user_id;
+
+        DB::transaction(function () use ($transaction, $balanceService, $supervisorId) {
             $transaction = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
             $supervisor = User::whereKey($transaction->user_id)->lockForUpdate()->firstOrFail();
 
-            $balanceService->assertLedgerWillNotBeNegative(
-                $supervisor->id,
-                $transaction->id,
-                null,
-                'Transaction tidak boleh dipadam kerana akan menyebabkan running balance negatif dalam ledger/Excel.'
-            );
+            if ($transaction->type === 'topup') {
+                $balanceService->assertLedgerWillNotBeNegative(
+                    $supervisor->id,
+                    $transaction->id,
+                    null,
+                    'Transaction tidak boleh dipadam kerana akan menyebabkan running balance negatif dalam ledger/Excel.'
+                );
+            }
 
-            $supervisorId = $transaction->user_id;
             $transaction->delete();
             $balanceService->recalculate($supervisor);
         });
