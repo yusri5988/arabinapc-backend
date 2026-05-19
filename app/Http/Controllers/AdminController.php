@@ -38,12 +38,10 @@ class AdminController extends Controller
 
     public function listSupervisors(SupervisorBalanceService $balanceService)
     {
-        return Cache::remember('ui:admin:supervisors', 1800, function () use ($balanceService) {
-            $supervisors = User::where('role', 'supervisor')->get();
-            $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
+        $supervisors = User::where('role', 'supervisor')->get();
+        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
 
-            return ['supervisors' => $supervisors];
-        });
+        return ['supervisors' => $supervisors];
     }
 
     public function createSupervisor(Request $request)
