@@ -81,7 +81,7 @@ class ExpenseTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_expense_fails_when_insufficient_balance(): void
+    public function test_expense_allows_negative_balance(): void
     {
         $supervisor = User::factory()->supervisor()->withBalance(20)->create();
 
@@ -103,11 +103,16 @@ class ExpenseTest extends TestCase
                 'date' => '2024-01-01',
             ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['amount'])
-            ->assertJsonPath('message', 'Baki tidak mencukupi.');
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'Perbelanjaan berjaya direkodkan.');
 
-        $this->assertEquals(20, $supervisor->fresh()->balance);
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 50,
+        ]);
+
+        $this->assertEquals(-30, $supervisor->fresh()->balance);
     }
 
     public function test_expense_requires_valid_input(): void

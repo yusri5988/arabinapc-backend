@@ -62,12 +62,6 @@ class SupervisorController extends Controller
         DB::transaction(function () use ($request, $balanceService, $supervisorId) {
             $user = User::whereKey($supervisorId)->lockForUpdate()->firstOrFail();
 
-            if ($balanceService->calculate($user->id) < (float) $request->amount) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Baki tidak mencukupi.',
-                ]);
-            }
-
             Transaction::create([
                 'user_id' => $user->id,
                 'type' => 'expense',

@@ -199,7 +199,7 @@ class AdminTransactionCrudTest extends TestCase
         $this->assertEquals(80, (float) $supervisor->fresh()->balance);
     }
 
-    public function test_admin_cannot_create_expense_that_starts_ledger_negative(): void
+    public function test_admin_can_create_expense_that_starts_ledger_negative(): void
     {
         $admin = User::factory()->admin()->create();
         $supervisor = User::factory()->supervisor()->create();
@@ -215,10 +215,49 @@ class AdminTransactionCrudTest extends TestCase
                 'site_id' => 'A101',
                 'date' => '2024-01-02',
             ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['amount']);
+            ->assertCreated()
+            ->assertJsonPath('transaction.type', 'expense');
 
-        $this->assertDatabaseCount('transactions', 0);
-        $this->assertEquals(0, (float) $supervisor->fresh()->balance);
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertEquals(-50, (float) $supervisor->fresh()->balance);
+    }
+
+    public function test_admin_can_update_expense_to_negative_balance(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(100)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 100,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
+        $expense = Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 30,
+            'payment_to' => 'Vendor A',
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'date' => '2024-01-02',
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson("/api/admin/transactions/{$expense->id}", [
+                'amount' => 150,
+                'payment_to' => 'Vendor A',
+                'details' => 'Site Meal',
+                'description' => 'Lunch',
+                'site_id' => 'A101',
+                'date' => '2024-01-02',
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction.amount', '150.00');
+
+        $this->assertEquals(-50, (float) $supervisor->fresh()->balance);
     }
 }

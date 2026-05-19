@@ -103,17 +103,6 @@ class TransactionController extends Controller
             $admin = $request->user();
             $supervisor = User::whereKey($validated['supervisor_id'])->lockForUpdate()->firstOrFail();
 
-            $balanceService->assertLedgerWillNotBeNegative(
-                $supervisor->id,
-                null,
-                [
-                    'type' => $validated['type'],
-                    'amount' => $validated['amount'],
-                    'date' => $validated['date'],
-                ],
-                'Transaction tidak boleh dicipta kerana akan menyebabkan running balance negatif.'
-            );
-
             $transaction = Transaction::create([
                 'user_id' => $supervisor->id,
                 'type' => $validated['type'],
@@ -159,18 +148,6 @@ class TransactionController extends Controller
         $transaction = DB::transaction(function () use ($transaction, $validated, $balanceService) {
             $transaction = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
             $supervisor = User::whereKey($transaction->user_id)->lockForUpdate()->firstOrFail();
-
-            $balanceService->assertLedgerWillNotBeNegative(
-                $supervisor->id,
-                $transaction->id,
-                [
-                    'id' => $transaction->id,
-                    'type' => $transaction->type,
-                    'amount' => $validated['amount'],
-                    'date' => $validated['date'],
-                ],
-                'Transaction tidak boleh dikemaskini kerana akan menyebabkan running balance negatif.'
-            );
 
             $transaction->update([
                 'amount' => $validated['amount'],
