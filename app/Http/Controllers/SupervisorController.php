@@ -68,17 +68,6 @@ class SupervisorController extends Controller
                 ]);
             }
 
-            $balanceService->assertLedgerWillNotBeNegative(
-                $user->id,
-                null,
-                [
-                    'type' => 'expense',
-                    'amount' => $request->amount,
-                    'date' => $request->date,
-                ],
-                'Perbelanjaan tidak boleh direkodkan kerana akan menyebabkan running balance negatif.'
-            );
-
             Transaction::create([
                 'user_id' => $user->id,
                 'type' => 'expense',
