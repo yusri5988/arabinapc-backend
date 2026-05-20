@@ -182,15 +182,6 @@ class TransactionController extends Controller
             $transaction = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
             $supervisor = User::whereKey($transaction->user_id)->lockForUpdate()->firstOrFail();
 
-            if ($transaction->type === 'topup') {
-                $balanceService->assertLedgerWillNotBeNegative(
-                    $supervisor->id,
-                    $transaction->id,
-                    null,
-                    'Transaction tidak boleh dipadam kerana akan menyebabkan running balance negatif dalam ledger/Excel.'
-                );
-            }
-
             $transaction->delete();
             $balanceService->recalculate($supervisor);
         });

@@ -125,7 +125,7 @@ class AdminTransactionCrudTest extends TestCase
         $this->assertEquals(200, (float) $supervisor->fresh()->balance);
     }
 
-    public function test_admin_cannot_delete_topup_if_running_balance_would_be_negative(): void
+    public function test_admin_can_delete_topup_even_if_balance_becomes_negative(): void
     {
         $admin = User::factory()->admin()->create();
         $supervisor = User::factory()->supervisor()->withBalance(50)->create();
@@ -150,11 +150,11 @@ class AdminTransactionCrudTest extends TestCase
 
         $this->actingAs($admin)
             ->deleteJson("/api/admin/transactions/{$topup->id}")
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['amount']);
+            ->assertOk()
+            ->assertJsonPath('message', 'Transaction berjaya dipadam.');
 
-        $this->assertDatabaseHas('transactions', ['id' => $topup->id]);
-        $this->assertEquals(50, (float) $supervisor->fresh()->balance);
+        $this->assertDatabaseMissing('transactions', ['id' => $topup->id]);
+        $this->assertEquals(-50, (float) $supervisor->fresh()->balance);
     }
 
     public function test_admin_can_delete_expense_even_if_existing_ledger_has_negative_running_balance(): void
