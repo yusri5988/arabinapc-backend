@@ -13,48 +13,49 @@ class ReceiptProcessingServiceTest extends TestCase
 {
     private function service(): ReceiptProcessingService
     {
-        return new ReceiptProcessingService();
+        return new ReceiptProcessingService;
     }
 
     public function test_process_returns_dto_when_api_key_missing(): void
     {
-        config(['services.gemini.api_key' => '']);
+        config(['services.claude.api_key' => '']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
-        $this->assertEquals('Sila tetapkan API Key Gemini', $result->description);
+        $this->assertEquals('Sila tetapkan API Key Claude', $result->description);
         $this->assertNotEmpty($result->receiptUrl);
     }
 
-    public function test_process_returns_dto_with_gemini_response(): void
+    public function test_process_returns_dto_with_claude_response(): void
     {
-        config(['services.gemini.api_key' => 'test-api-key']);
+        config(['services.claude.api_key' => 'test-api-key']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => '{"date": "2024-02-10", "amount": 35.50, "payment_to": "Kedai Ali", "description": "Makan tengah hari"}',
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => '{"date": "2024-02-10", "amount": 35.50, "payment_to": "Kedai Ali", "description": "Makan tengah hari"}',
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals('2024-02-10', $result->date);
@@ -65,28 +66,28 @@ class ReceiptProcessingServiceTest extends TestCase
 
     public function test_process_handles_json_with_code_block(): void
     {
-        config(['services.gemini.api_key' => 'test-api-key']);
+        config(['services.claude.api_key' => 'test-api-key']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => "```json\n{\"date\": \"2024-05-01\", \"amount\": 120.00, \"payment_to\": \"Hardware ABC\", \"description\": \"Beli barang elektrik\"}\n```",
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => "```json\n{\"date\": \"2024-05-01\", \"amount\": 120.00, \"payment_to\": \"Hardware ABC\", \"description\": \"Beli barang elektrik\"}\n```",
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $this->assertEquals('2024-05-01', $result->date);
         $this->assertEquals(120.00, $result->amount);
@@ -96,16 +97,17 @@ class ReceiptProcessingServiceTest extends TestCase
 
     public function test_process_returns_fallback_on_api_failure(): void
     {
-        config(['services.gemini.api_key' => 'test-api-key']);
+        config(['services.claude.api_key' => 'test-api-key']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response(['error' => 'Service unavailable'], 500),
+            'api.anthropic.com/*' => Http::response(['error' => ['message' => 'Service unavailable']], 500),
         ]);
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
@@ -116,28 +118,28 @@ class ReceiptProcessingServiceTest extends TestCase
 
     public function test_process_returns_fallback_on_invalid_json(): void
     {
-        config(['services.gemini.api_key' => 'test-api-key']);
+        config(['services.claude.api_key' => 'test-api-key']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => 'This is not valid JSON at all',
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => 'This is not valid JSON at all',
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $this->assertInstanceOf(ReceiptExtractionDTO::class, $result);
         $this->assertEquals(0.00, $result->amount);
@@ -148,28 +150,28 @@ class ReceiptProcessingServiceTest extends TestCase
 
     public function test_process_stores_receipt_file(): void
     {
-        config(['services.gemini.api_key' => 'test-api-key']);
+        config(['services.claude.api_key' => 'test-api-key']);
 
         Storage::fake('public');
         $file = UploadedFile::fake()->image('receipt.jpg');
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => '{"date": "2024-01-01", "amount": 10.00, "description": "Test"}',
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => '{"date": "2024-01-01", "amount": 10.00, "description": "Test"}',
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
-        $result = $this->service()->process($file);
+        $stored = $this->service()->storeReceipt($file);
+        $result = $this->service()->processStored($stored['storedPath'], $stored['receiptUrl']);
 
         $files = Storage::disk('public')->files('receipts');
         $this->assertNotEmpty($files);

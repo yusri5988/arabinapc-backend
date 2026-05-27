@@ -2,18 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ExportSupervisorExcelJob;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class AdminController extends Controller
 {
@@ -36,12 +35,24 @@ class AdminController extends Controller
         });
     }
 
-    public function listSupervisors(SupervisorBalanceService $balanceService)
+    public function listSupervisors(SupervisorBalanceService $balanceService, ActivityLogService $log)
     {
-        $supervisors = User::where('role', 'supervisor')->get();
-        $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            $supervisors->each(fn (User $supervisor) => $supervisor->balance = $balanceService->calculate($supervisor->id));
 
-        return ['supervisors' => $supervisors];
+            $log->log('supervisors.fetch', 'success', [
+                'count' => $supervisors->count(),
+                'supervisor_ids' => $supervisors->pluck('id')->toArray(),
+            ]);
+
+            return ['supervisors' => $supervisors];
+        } catch (\Exception $e) {
+            $log->log('supervisors.fetch', 'fail', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     public function createSupervisor(Request $request)
@@ -92,42 +103,124 @@ class AdminController extends Controller
         ]);
     }
 
-    public function topup(Request $request, SupervisorBalanceService $balanceService)
+    public function topup(Request $request, SupervisorBalanceService $balanceService, ActivityLogService $log)
     {
-        $request->validate([
-            'supervisor_id' => [
-                'required',
-                Rule::exists('users', 'id')->where('role', 'supervisor'),
-            ],
-            'amount' => 'required|numeric|min:0.01',
-        ]);
-
-        $admin = $request->user();
-        $supervisor = User::findOrFail($request->supervisor_id);
-
-        $balance = DB::transaction(function () use ($admin, $supervisor, $request, $balanceService) {
-            $supervisor = User::whereKey($supervisor->id)->lockForUpdate()->firstOrFail();
-
-            Transaction::create([
-                'user_id' => $supervisor->id,
-                'type' => 'topup',
-                'amount' => $request->amount,
-                'payment_to' => 'Supervisor Topup',
-                'description' => 'Duit diterima daripada Admin: '.$admin->name,
-                'date' => now(),
-                'metadata' => [
-                    'source' => 'admin_send_to_supervisor',
-                    'sent_by_user_id' => $admin->id,
+        // Step 1: Validation
+        try {
+            $request->validate([
+                'supervisor_id' => [
+                    'required',
+                    Rule::exists('users', 'id')->where('role', 'supervisor'),
                 ],
+                'amount' => 'required|numeric|min:0.01',
             ]);
+            $log->log('topup.validation', 'success', [
+                'supervisor_id' => $request->supervisor_id,
+                'amount' => $request->amount,
+            ]);
+        } catch (\Exception $e) {
+            $log->log('topup.validation', 'fail', [
+                'supervisor_id' => $request->supervisor_id,
+                'amount' => $request->amount,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
 
-            return $balanceService->recalculate($supervisor);
-        });
+        // Step 2: Fetch users
+        try {
+            $admin = $request->user();
+            $supervisor = User::findOrFail($request->supervisor_id);
+            $log->log('topup.fetch_users', 'success', [
+                'admin_id' => $admin->id,
+                'supervisor_id' => $supervisor->id,
+                'supervisor_name' => $supervisor->name,
+            ]);
+        } catch (\Exception $e) {
+            $log->log('topup.fetch_users', 'fail', [
+                'supervisor_id' => $request->supervisor_id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
 
-        Cache::forget('ui:admin:supervisors');
-        Cache::forget('ui:admin:dashboard');
-        Cache::forget("ui:user:{$supervisor->id}");
-        Cache::forget("ui:supervisor:ledger:{$supervisor->id}");
+        // Step 3: DB Transaction (lock + create transaction + recalculate balance)
+        $previousBalance = $supervisor->balance;
+        try {
+            $balance = DB::transaction(function () use ($admin, $supervisor, $request, $balanceService, $log, $previousBalance) {
+                // 3a: Pessimistic lock
+                $supervisor = User::whereKey($supervisor->id)->lockForUpdate()->firstOrFail();
+                $log->log('topup.lock_supervisor', 'success', [
+                    'supervisor_id' => $supervisor->id,
+                    'supervisor_name' => $supervisor->name,
+                ]);
+
+                // 3b: Create transaction record
+                Transaction::create([
+                    'user_id' => $supervisor->id,
+                    'type' => 'topup',
+                    'amount' => $request->amount,
+                    'payment_to' => 'Supervisor Topup',
+                    'description' => 'Duit diterima daripada Admin: '.$admin->name,
+                    'date' => now(),
+                    'metadata' => [
+                        'source' => 'admin_send_to_supervisor',
+                        'sent_by_user_id' => $admin->id,
+                    ],
+                ]);
+                $log->log('topup.create_transaction', 'success', [
+                    'supervisor_id' => $supervisor->id,
+                    'amount' => $request->amount,
+                    'type' => 'topup',
+                ]);
+
+                // 3c: Recalculate balance
+                $newBalance = $balanceService->recalculate($supervisor);
+                $log->log('topup.recalculate_balance', 'success', [
+                    'supervisor_id' => $supervisor->id,
+                    'previous_balance' => $previousBalance,
+                    'new_balance' => $newBalance,
+                ]);
+
+                return $newBalance;
+            });
+            $log->log('topup.transaction', 'success', [
+                'supervisor_id' => $supervisor->id,
+                'amount' => $request->amount,
+                'new_balance' => $balance,
+            ]);
+        } catch (\Exception $e) {
+            $log->log('topup.transaction', 'fail', [
+                'supervisor_id' => $supervisor->id ?? $request->supervisor_id,
+                'amount' => $request->amount,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        // Step 4: Cache invalidation
+        try {
+            Cache::forget('ui:admin:supervisors');
+            Cache::forget('ui:admin:dashboard');
+            Cache::forget("ui:user:{$supervisor->id}");
+            Cache::forget("ui:supervisor:ledger:{$supervisor->id}");
+            $log->log('topup.cache_clear', 'success', [
+                'supervisor_id' => $supervisor->id,
+            ]);
+        } catch (\Exception $e) {
+            $log->log('topup.cache_clear', 'fail', [
+                'supervisor_id' => $supervisor->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Step 5: Completed
+        $log->log('topup.completed', 'success', [
+            'admin_id' => $admin->id,
+            'supervisor_id' => $supervisor->id,
+            'amount' => (float) $request->amount,
+            'new_balance' => $balance,
+        ]);
 
         return response()->json([
             'message' => 'Duit berjaya dihantar kepada supervisor.',
@@ -139,102 +232,42 @@ class AdminController extends Controller
     {
         abort_unless($supervisor->role === 'supervisor', 404);
 
-        $transactions = Transaction::where('user_id', $supervisor->id)
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
+        $jobId = (string) Str::uuid();
 
-        $openingBalance = 0;
+        Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Petty Cash');
+        ExportSupervisorExcelJob::dispatch($supervisor->id, $jobId);
 
-        $headers = [
-            'Date',
-            'Payment To',
-            'Details',
-            'Money Out',
-            'Money In',
-            'Initial balance',
-            'Inflow type',
-            'Outflow type',
-            'Details',
-            'Month',
-            'Site ID',
-            'Doc.Link',
-        ];
+        return response()->json(['job_id' => $jobId]);
+    }
 
-        $sheet->fromArray($headers, null, 'A1');
+    public function exportStatus(string $jobId)
+    {
+        $result = Cache::get("export_result:{$jobId}");
 
-        $headerStyle = $sheet->getStyle('A1:L1');
-        $headerStyle->getFont()->setBold(true);
-        $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
-
-        $row = 2;
-        $runningBalance = $openingBalance;
-
-        if ($transactions->isEmpty()) {
-            $sheet->setCellValue("A{$row}", now()->format('d/m/Y'));
-            $sheet->setCellValue("B{$row}", 'Opening Balance');
-            $sheet->setCellValueExplicit("F{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
-        } else {
-            foreach ($transactions as $transaction) {
-                $amount = (float) $transaction->amount;
-
-                if ($transaction->type === 'topup') {
-                    $moneyIn = $amount;
-                    $moneyOut = 0;
-                    $inflowType = 'Topup';
-                    $outflowType = '';
-                    $paymentTo = $transaction->payment_to ?: 'Admin Transfer';
-                    $displayDetails = $transaction->details ?: 'Topup';
-                } else {
-                    $moneyIn = 0;
-                    $moneyOut = $amount;
-                    $inflowType = '';
-                    $outflowType = $transaction->details ?: 'Expense';
-                    $paymentTo = $transaction->payment_to ?: '-';
-                    $displayDetails = $transaction->details ?: $transaction->description;
-                }
-
-                $runningBalance = $runningBalance + $moneyIn - $moneyOut;
-                $balance = $runningBalance;
-                $docLink = $transaction->receipt_url;
-                $itemImages = data_get($transaction->metadata, 'item_images', []);
-
-                if (empty($docLink) && is_array($itemImages) && ! empty($itemImages)) {
-                    $docLink = $itemImages[0]['url'] ?? '';
-                }
-
-                $sheet->setCellValueExplicit("A{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("B{$row}", (string) $paymentTo, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("C{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("D{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("E{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("F{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("G{$row}", $inflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("H{$row}", $outflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("I{$row}", (string) $displayDetails, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("J{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("K{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("L{$row}", (string) $docLink, DataType::TYPE_STRING);
-
-                $row++;
-            }
+        if (! $result) {
+            return response()->json(['status' => 'not_found'], 404);
         }
 
-        foreach (range('A', 'L') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
+        return response()->json($result);
+    }
+
+    public function exportDownload(string $jobId)
+    {
+        $result = Cache::get("export_result:{$jobId}");
+
+        if (! $result || ($result['status'] ?? '') !== 'completed') {
+            return response()->json(['message' => 'Export not ready.'], 404);
         }
 
-        $fileName = 'petty-cash-' . $supervisor->name . '-' . now()->format('Ymd_His') . '.xlsx';
-        $tempPath = tempnam(sys_get_temp_dir(), 'pcx');
+        $filePath = $result['file_path'];
+        $fileName = $result['file_name'];
 
-        $writer = new Xlsx($spreadsheet);
-        $writer->save($tempPath);
+        if (! file_exists($filePath)) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
 
-        return response()->download($tempPath, $fileName)->deleteFileAfterSend(true);
+        return response()->download($filePath, $fileName)->deleteFileAfterSend(true);
     }
 
     private function normalizePhone(string $phone): string

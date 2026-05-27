@@ -48,6 +48,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function developer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'developer',
+        ]);
+    }
+
     public function withBalance(float $balance): static
     {
         return $this->state(fn (array $attributes) => [

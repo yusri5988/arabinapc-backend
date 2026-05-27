@@ -37,5 +37,5 @@ Route::get('/storage/expense-items/{filename}', function ($filename) {
 })->where('filename', '.*');
 
 Route::fallback(function () {
-    return file_get_contents(public_path('index.html'));
+    return view('app');
 });

@@ -11,7 +11,7 @@ class ExpenseItemImageService
     public function upload(UploadedFile $image, ?string $siteId = null): ExpenseItemImageDTO
     {
         $localPath = $siteId !== null && $siteId !== ''
-            ? 'expense-items/' . preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
+            ? 'expense-items/'.preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
             : 'expense-items';
 
         $storedPath = $image->store($localPath, 'public');
@@ -23,6 +23,7 @@ class ExpenseItemImageService
         return ExpenseItemImageDTO::success(
             imageUrl: Storage::disk('public')->url($storedPath),
             fileName: $image->getClientOriginalName(),
+            storedPath: $storedPath,
         );
     }
 }

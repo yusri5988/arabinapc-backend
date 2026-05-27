@@ -16,8 +16,8 @@
     <style>
       html, body, #app { height: 100%; background: #f8fafc; }
     </style>
-    <script type="module" crossorigin src="/assets/index-zAUGlpaE.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-C_pLoFH-.css">
+    @viteReactRefresh
+    @vite('resources/js/main.jsx')
   </head>
   <body>
     <div id="app"></div>
