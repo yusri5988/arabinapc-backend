@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\UploadToGoogleDriveJob;
 use App\Models\Transaction;
 use App\Models\User;
-use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -17,6 +18,7 @@ class SyncImagesToGoogleDriveCommandTest extends TestCase
     {
         Storage::fake('public');
         Storage::fake('google');
+        Bus::fake([UploadToGoogleDriveJob::class]);
 
         Storage::disk('public')->put('receipts/SITE1/receipt.jpg', 'receipt');
         Storage::disk('public')->put('expense-items/SITE2/item.jpg', 'item');
@@ -35,12 +37,12 @@ class SyncImagesToGoogleDriveCommandTest extends TestCase
         ]);
 
         $this->artisan('images:sync-google-drive')
-            ->expectsOutput('Google Drive image sync completed. Scanned: 2 Uploaded: 1 Skipped: 1 Failed: 0')
-            ->assertExitCode(Command::SUCCESS);
+            ->assertExitCode(0);
 
-        Storage::disk('google')->assertExists('receipts/SITE1/receipt.jpg');
-        Storage::disk('google')->assertExists('expense-items/SITE2/item.jpg');
-        Storage::disk('google')->assertMissing('receipts/root-receipt.jpg');
+        Bus::assertDispatched(UploadToGoogleDriveJob::class, function ($job) {
+            return $job->sourcePath === 'expense-items/SITE2/item.jpg';
+        });
+
         Storage::disk('public')->assertExists('receipts/SITE1/receipt.jpg');
 
         $this->assertDatabaseHas('transactions', [

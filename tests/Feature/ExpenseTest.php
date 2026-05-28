@@ -81,7 +81,7 @@ class ExpenseTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_expense_fails_when_insufficient_balance(): void
+    public function test_expense_allows_negative_balance(): void
     {
         $supervisor = User::factory()->supervisor()->withBalance(20)->create();
 
@@ -103,11 +103,16 @@ class ExpenseTest extends TestCase
                 'date' => '2024-01-01',
             ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['amount'])
-            ->assertJsonPath('message', 'Baki tidak mencukupi.');
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'Perbelanjaan berjaya direkodkan.');
 
-        $this->assertEquals(20, $supervisor->fresh()->balance);
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 50,
+        ]);
+
+        $this->assertEquals(-30, $supervisor->fresh()->balance);
     }
 
     public function test_expense_requires_valid_input(): void
@@ -125,6 +130,47 @@ class ExpenseTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['amount', 'details', 'description', 'site_id', 'date']);
+    }
+
+    public function test_expense_allowed_when_date_is_before_topup_if_current_balance_sufficient(): void
+    {
+        $supervisor = User::factory()->supervisor()->withBalance(500)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-03-01',
+        ]);
+
+        $response = $this->actingAs($supervisor)
+            ->postJson('/api/supervisor/expense', [
+                'amount' => 100,
+                'payment_to' => 'Vendor',
+                'details' => 'Site Meal',
+                'description' => 'Test expense with earlier date',
+                'site_id' => 'A101',
+                'date' => '2024-01-15',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'Perbelanjaan berjaya direkodkan.');
+
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 100,
+        ]);
+
+        $this->assertTrue(
+            Transaction::where('user_id', $supervisor->id)
+                ->where('type', 'expense')
+                ->whereDate('date', '2024-01-15')
+                ->exists()
+        );
+
+        $this->assertEquals(400, $supervisor->fresh()->balance);
     }
 
     public function test_expense_receipt_url_is_optional(): void

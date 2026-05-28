@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessReceiptJob;
 use App\Models\User;
+use App\Services\ReceiptProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -16,19 +20,20 @@ class ProcessReceiptTest extends TestCase
     public function test_supervisor_can_upload_receipt_and_get_ai_response(): void
     {
         Storage::fake('public');
+        Queue::fake([ProcessReceiptJob::class]);
+
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => '{"date": "2024-03-15", "amount": 45.90, "description": "Makan minum site"}',
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => '{"date": "2024-03-15", "amount": 45.90, "description": "Makan minum site"}',
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
@@ -43,13 +48,15 @@ class ProcessReceiptTest extends TestCase
             ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('date', '2024-03-15')
-            ->assertJsonPath('amount', 45.90)
-            ->assertJsonPath('description', 'Makan minum site')
-            ->assertJsonStructure(['date', 'amount', 'description', 'receipt_url']);
+            ->assertJsonStructure(['job_id', 'receipt_url']);
+
+        $this->assertNotEmpty($response->json('job_id'));
+        $this->assertNotEmpty($response->json('receipt_url'));
 
         $files = Storage::disk('public')->allFiles('receipts/A102');
         $this->assertNotEmpty($files);
+
+        Queue::assertPushed(ProcessReceiptJob::class);
     }
 
     public function test_process_receipt_requires_authentication(): void
@@ -107,11 +114,12 @@ class ProcessReceiptTest extends TestCase
             ->assertJsonValidationErrors('receipt');
     }
 
-    public function test_process_receipt_handles_gemini_failure_gracefully(): void
+    public function test_process_receipt_handles_claude_failure_gracefully(): void
     {
         Storage::fake('public');
+
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response(['error' => 'Rate limit'], 429),
+            'api.anthropic.com/*' => Http::response(['error' => ['message' => 'Rate limit']], 429),
         ]);
 
         $supervisor = User::factory()->supervisor()->create();
@@ -124,8 +132,53 @@ class ProcessReceiptTest extends TestCase
             ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('description', 'Gagal baca resit. Sila isi borang secara manual.');
+            ->assertJsonStructure(['job_id', 'receipt_url']);
 
-        $this->assertEquals(0, $response->json('amount'));
+        $jobId = $response->json('job_id');
+        $receiptUrl = $response->json('receipt_url');
+
+        $storedFiles = Storage::disk('public')->allFiles('receipts/A102');
+        $this->assertNotEmpty($storedFiles);
+
+        $job = new ProcessReceiptJob($storedFiles[0], $receiptUrl, $jobId);
+        $job->handle(app(ReceiptProcessingService::class));
+
+        $result = Cache::get("job_result:{$jobId}");
+        $this->assertEquals('completed', $result['status']);
+        $this->assertEquals('Gagal baca resit. Sila isi borang secara manual.', $result['data']['description']);
+        $this->assertEquals(0, $result['data']['amount']);
+    }
+
+    public function test_receipt_status_polling_returns_processing(): void
+    {
+        Storage::fake('public');
+        Queue::fake([ProcessReceiptJob::class]);
+
+        $supervisor = User::factory()->supervisor()->create();
+        $file = UploadedFile::fake()->image('receipt.jpg');
+
+        $response = $this->actingAs($supervisor)
+            ->postJson('/api/supervisor/process-receipt', [
+                'receipt' => $file,
+                'site_id' => 'A102',
+            ]);
+
+        $jobId = $response->json('job_id');
+
+        $statusResponse = $this->actingAs($supervisor)
+            ->getJson("/api/supervisor/receipt-status/{$jobId}");
+
+        $statusResponse->assertStatus(200)
+            ->assertJsonPath('status', 'processing');
+    }
+
+    public function test_receipt_status_returns_not_found_for_invalid_job(): void
+    {
+        $supervisor = User::factory()->supervisor()->create();
+
+        $response = $this->actingAs($supervisor)
+            ->getJson('/api/supervisor/receipt-status/nonexistent-id');
+
+        $response->assertStatus(404);
     }
 }

@@ -13,26 +13,45 @@ use Illuminate\Support\Facades\Storage;
 
 class ReceiptProcessingService
 {
-    public function process(UploadedFile $receipt, ?string $siteId = null): ReceiptExtractionDTO
+    public function storeReceipt(UploadedFile $receipt, ?string $siteId = null): array
     {
         $localPath = $siteId !== null && $siteId !== ''
-            ? 'receipts/' . preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
+            ? 'receipts/'.preg_replace('/[^a-zA-Z0-9_\-]/', '', $siteId)
             : 'receipts';
 
         $storedPath = $receipt->store($localPath, 'public');
         $receiptUrl = Storage::disk('public')->url($storedPath);
 
-        $apiKey = (string) config('services.gemini.api_key');
+        return [
+            'storedPath' => $storedPath,
+            'receiptUrl' => $receiptUrl,
+        ];
+    }
+
+    public function processStored(string $storedPath, string $receiptUrl): ReceiptExtractionDTO
+    {
+        $apiKey = (string) config('services.claude.api_key');
 
         if ($apiKey === '') {
             return ReceiptExtractionDTO::failed(
                 receiptUrl: $receiptUrl,
-                description: 'Sila tetapkan API Key Gemini',
-                error: 'GEMINI_API_KEY tidak ditetapkan dalam .env.',
+                description: 'Sila tetapkan API Key Claude',
+                error: 'CLAUDE_API_KEY tidak ditetapkan dalam .env.',
             );
         }
 
-        $response = $this->sendExtractionRequest($receipt, $apiKey);
+        $fileContent = Storage::disk('public')->get($storedPath);
+        $mimeType = Storage::disk('public')->mimeType($storedPath);
+
+        if ($fileContent === null || $fileContent === false) {
+            return ReceiptExtractionDTO::failed(
+                receiptUrl: $receiptUrl,
+                description: 'Gagal baca resit. Fail tidak wujud.',
+                error: 'Fail resit tidak ditemui di storage.',
+            );
+        }
+
+        $response = $this->sendExtractionRequest($fileContent, $mimeType, $apiKey);
 
         if ($response === null) {
             Log::warning('Receipt extraction failed after retries.');
@@ -40,7 +59,7 @@ class ReceiptProcessingService
             return ReceiptExtractionDTO::failed(
                 receiptUrl: $receiptUrl,
                 description: 'Gagal baca resit. Sila isi borang secara manual.',
-                error: 'Tidak dapat hubungi Gemini API (connection error selepas 3 percubaan).',
+                error: 'Tidak dapat hubungi Claude API (connection error selepas 3 percubaan).',
             );
         }
 
@@ -58,7 +77,7 @@ class ReceiptProcessingService
                 return ReceiptExtractionDTO::failed(
                     receiptUrl: $receiptUrl,
                     description: 'Gagal baca resit. Sila isi borang secara manual.',
-                    error: "Rate limit exceeded (429) dari Gemini API. {$errorMessage}",
+                    error: "Rate limit exceeded (429) dari Claude API. {$errorMessage}",
                 );
             }
 
@@ -70,22 +89,22 @@ class ReceiptProcessingService
                 );
             }
 
-            if ($status === 403) {
+            if ($status === 403 || $status === 401) {
                 return ReceiptExtractionDTO::failed(
                     receiptUrl: $receiptUrl,
                     description: 'Gagal baca resit. Sila isi borang secara manual.',
-                    error: "API Key tidak sah atau tiada kebenaran (403): {$errorMessage}",
+                    error: "API Key tidak sah atau tiada kebenaran ({$status}): {$errorMessage}",
                 );
             }
 
             return ReceiptExtractionDTO::failed(
                 receiptUrl: $receiptUrl,
                 description: 'Gagal baca resit. Sila isi borang secara manual.',
-                error: "Gemini API error (HTTP {$status}): {$errorMessage}",
+                error: "Claude API error (HTTP {$status}): {$errorMessage}",
             );
         }
 
-        $content = (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '{}');
+        $content = (string) data_get($response->json(), 'content.0.text', '{}');
         $sanitizedContent = preg_replace('/```json|```/', '', $content) ?? '{}';
         $decoded = json_decode(trim($sanitizedContent), true);
 
@@ -97,27 +116,35 @@ class ReceiptProcessingService
             return ReceiptExtractionDTO::failed(
                 receiptUrl: $receiptUrl,
                 description: 'Gagal baca resit. Sila isi borang secara manual.',
-                error: 'AI tidak return JSON yang valid. Response: ' . substr($content, 0, 200),
+                error: 'AI tidak return JSON yang valid. Response: '.substr($content, 0, 200),
             );
         }
 
         return ReceiptExtractionDTO::fromArray($decoded, $receiptUrl);
     }
 
-    private function sendExtractionRequest(UploadedFile $receipt, string $apiKey): ?Response
+    private function sendExtractionRequest(string $fileContent, string $mimeType, string $apiKey): ?Response
     {
+        $model = (string) config('services.claude.model', 'claude-3-haiku-20240307');
+
         $payload = [
-            'contents' => [
+            'model' => $model,
+            'max_tokens' => 1024,
+            'messages' => [
                 [
-                    'parts' => [
+                    'role' => 'user',
+                    'content' => [
                         [
-                            'text' => "Extract the Date, Total Amount, Payment To / Payee, and a short Description (in Malay) from this receipt. Return ONLY a valid JSON object with keys: date (YYYY-MM-DD), amount (float), payment_to (string), description (string). If you can't find something, use today's date, 0.00, or an empty string.",
+                            'type' => 'image',
+                            'source' => [
+                                'type' => 'base64',
+                                'media_type' => $mimeType,
+                                'data' => base64_encode($fileContent),
+                            ],
                         ],
                         [
-                            'inline_data' => [
-                                'mime_type' => $receipt->getMimeType(),
-                                'data' => base64_encode(file_get_contents($receipt->getPathname())),
-                            ],
+                            'type' => 'text',
+                            'text' => "Extract the Date, Total Amount, Payment To / Payee, and a short Description (in Malay) from this receipt. Return ONLY a valid JSON object with keys: date (YYYY-MM-DD), amount (float), payment_to (string), description (string). If you can't find something, use today's date, 0.00, or an empty string.",
                         ],
                     ],
                 ],
@@ -129,9 +156,10 @@ class ReceiptProcessingService
                 $response = Http::acceptJson()
                     ->asJson()
                     ->withHeaders([
-                        'X-goog-api-key' => $apiKey,
+                        'x-api-key' => $apiKey,
+                        'anthropic-version' => '2023-06-01',
                     ])
-                    ->post((string) config('services.gemini.endpoint'), $payload);
+                    ->post((string) config('services.claude.endpoint'), $payload);
             } catch (ConnectionException $exception) {
                 Log::warning('Receipt extraction connection error.', [
                     'attempt' => $attempt,

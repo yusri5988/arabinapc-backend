@@ -32,6 +32,10 @@ class AppServiceProvider extends ServiceProvider
             return $user->role === 'supervisor';
         });
 
+        \Illuminate\Support\Facades\Gate::define('developer', function ($user) {
+            return $user->role === 'developer';
+        });
+
         try {
             Storage::extend('google', function ($app, $config) {
                 $client = new GoogleClient();

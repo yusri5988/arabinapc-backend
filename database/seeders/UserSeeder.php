@@ -19,5 +19,13 @@ class UserSeeder extends Seeder
             'role' => 'admin',
             'balance' => 10000,
         ]);
+
+        User::create([
+            'name' => 'Developer',
+            'phone' => '0183723744',
+            'password' => bcrypt('123456'),
+            'role' => 'developer',
+            'balance' => 0,
+        ]);
     }
 }

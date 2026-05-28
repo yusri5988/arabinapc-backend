@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessReceiptJob;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\ReceiptProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -17,20 +20,20 @@ class ReceiptToLedgerFlowTest extends TestCase
     public function test_full_flow_upload_receipt_to_ledger_shows_expense(): void
     {
         Storage::fake('public');
+        Queue::fake([ProcessReceiptJob::class]);
 
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => '{"date": "2024-03-15", "amount": 45.90, "description": "Makan minum site"}',
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => '{"date": "2024-03-15", "amount": 45.90, "description": "Makan minum site"}',
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200),
         ]);
 
@@ -54,22 +57,29 @@ class ReceiptToLedgerFlowTest extends TestCase
 
         $processResponse->assertStatus(200);
 
-        $aiData = $processResponse->json();
+        $jobId = $processResponse->json('job_id');
+        $receiptUrl = $processResponse->json('receipt_url');
 
-        $this->assertEquals('2024-03-15', $aiData['date']);
-        $this->assertEquals(45.90, $aiData['amount']);
-        $this->assertEquals('Makan minum site', $aiData['description']);
-        $this->assertNotEmpty($aiData['receipt_url']);
+        $storedFiles = Storage::disk('public')->allFiles('receipts/A102');
+        $this->assertNotEmpty($storedFiles);
+
+        $service = app(ReceiptProcessingService::class);
+        $dto = $service->processStored($storedFiles[0], $receiptUrl);
+
+        $this->assertEquals('2024-03-15', $dto->date);
+        $this->assertEquals(45.90, $dto->amount);
+        $this->assertEquals('Makan minum site', $dto->description);
+        $this->assertNotEmpty($dto->receiptUrl);
 
         $expenseResponse = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/expense', [
-                'amount' => $aiData['amount'],
-                'payment_to' => $aiData['payment_to'] ?? 'Vendor',
+                'amount' => $dto->amount,
+                'payment_to' => $dto->paymentTo ?: 'Vendor',
                 'details' => 'Site Meal',
-                'description' => $aiData['description'],
+                'description' => $dto->description,
                 'site_id' => 'A102',
-                'date' => $aiData['date'],
-                'receipt_url' => $aiData['receipt_url'],
+                'date' => $dto->date,
+                'receipt_url' => $dto->receiptUrl,
             ]);
 
         $expenseResponse->assertStatus(200)
@@ -108,6 +118,7 @@ class ReceiptToLedgerFlowTest extends TestCase
     public function test_multiple_receipts_flow_reflects_in_ledger(): void
     {
         Storage::fake('public');
+        Queue::fake([ProcessReceiptJob::class]);
 
         $supervisor = User::factory()->supervisor()->withBalance(1000)->create();
 
@@ -131,21 +142,21 @@ class ReceiptToLedgerFlowTest extends TestCase
             $callIndex++;
 
             return Http::response([
-                'candidates' => [
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
                     [
-                        'content' => [
-                            'parts' => [
-                                [
-                                    'text' => json_encode($data),
-                                ],
-                            ],
-                        ],
+                        'type' => 'text',
+                        'text' => json_encode($data),
                     ],
                 ],
+                'stop_reason' => 'end_turn',
             ], 200);
         });
 
         $files = ['receipt1.jpg', 'receipt2.jpg', 'receipt3.jpg'];
+        $service = app(ReceiptProcessingService::class);
 
         foreach ($files as $file) {
             $uploadedFile = UploadedFile::fake()->image($file);
@@ -158,17 +169,21 @@ class ReceiptToLedgerFlowTest extends TestCase
 
             $processResponse->assertStatus(200);
 
-            $aiData = $processResponse->json();
+            $receiptUrl = $processResponse->json('receipt_url');
+            $storedFiles = Storage::disk('public')->allFiles('receipts/A102');
+            $latestFile = end($storedFiles);
+
+            $dto = $service->processStored($latestFile, $receiptUrl);
 
             $this->actingAs($supervisor)
                 ->postJson('/api/supervisor/expense', [
-                    'amount' => $aiData['amount'],
-                    'payment_to' => $aiData['payment_to'] ?? 'Vendor',
+                    'amount' => $dto->amount,
+                    'payment_to' => $dto->paymentTo ?: 'Vendor',
                     'details' => 'Others',
-                    'description' => $aiData['description'],
+                    'description' => $dto->description,
                     'site_id' => 'A102',
-                    'date' => $aiData['date'],
-                    'receipt_url' => $aiData['receipt_url'],
+                    'date' => $dto->date,
+                    'receipt_url' => $dto->receiptUrl,
                 ])->assertStatus(200);
         }
 
