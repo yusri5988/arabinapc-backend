@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios';
 import AdminTransactionModal from '../../components/AdminTransactionModal';
+import { normalizeSupervisors } from '../../lib/normalize';
 import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2 } from 'lucide-react';
 
 const money = (value) =>
@@ -53,10 +54,25 @@ export default function AdminTransactions() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-        queryKey: ['adminTransactions'],
+    const [selectedStaffId, setSelectedStaffId] = useState('');
+
+    const { data: supervisorsData } = useQuery({
+        queryKey: ['adminSupervisorsForFilter'],
         queryFn: async () => {
-            const res = await api.get('/admin/transactions');
+            const res = await api.get('/admin/supervisors');
+            return res.data;
+        },
+        retry: 1,
+    });
+
+    const supervisors = normalizeSupervisors(supervisorsData) || [];
+
+    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+        queryKey: ['adminTransactions', selectedStaffId],
+        queryFn: async () => {
+            const res = await api.get('/admin/transactions', {
+                params: { user_id: selectedStaffId || undefined }
+            });
             return res.data;
         },
         retry: 1,
@@ -125,9 +141,8 @@ export default function AdminTransactions() {
                     </div>
                 </div>
             </div>
-
             <div className="bg-white border border-slate-200/60 rounded-[2rem] overflow-hidden shadow-sm">
-                <div className="p-5 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="p-5 md:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200/50">
                             <History className="text-slate-700" size={18} strokeWidth={2.5} />
@@ -135,15 +150,29 @@ export default function AdminTransactions() {
                         <h3 className="text-base font-bold text-slate-900">Transaction History</h3>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => refetch()}
-                        className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200/50 text-slate-500 transition-all hover:border-slate-300 hover:text-emerald-600 shadow-sm active:scale-95"
-                    >
-                        <RefreshCw size={16} strokeWidth={2.5} className={isFetching ? 'animate-spin text-emerald-600' : ''} />
-                    </button>
-                </div>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <select
+                            value={selectedStaffId}
+                            onChange={(e) => setSelectedStaffId(e.target.value)}
+                            className="w-full sm:w-56 bg-white border border-slate-200/70 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 shadow-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        >
+                            <option value="">All Staff</option>
+                            {supervisors.map((sv) => (
+                                <option key={sv.id} value={sv.id}>
+                                    {sv.name}
+                                </option>
+                            ))}
+                        </select>
 
+                        <button
+                            type="button"
+                            onClick={() => refetch()}
+                            className="md:hidden w-9 h-9 flex items-center justify-center shrink-0 rounded-xl bg-white border border-slate-200/50 text-slate-500 transition-all hover:border-slate-300 hover:text-emerald-600 shadow-sm active:scale-95"
+                        >
+                            <RefreshCw size={16} strokeWidth={2.5} className={isFetching ? 'animate-spin text-emerald-600' : ''} />
+                        </button>
+                    </div>
+                </div>
                 {isLoading ? (
                     <div className="p-12 text-center text-emerald-600 font-bold animate-pulse">
                         Loading transactions...

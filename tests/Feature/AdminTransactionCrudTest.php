@@ -260,4 +260,41 @@ class AdminTransactionCrudTest extends TestCase
 
         $this->assertEquals(-50, (float) $supervisor->fresh()->balance);
     }
+
+    public function test_admin_can_filter_transactions_by_supervisor(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor1 = User::factory()->supervisor()->create();
+        $supervisor2 = User::factory()->supervisor()->create();
+
+        Transaction::create([
+            'user_id' => $supervisor1->id,
+            'type' => 'topup',
+            'amount' => 100,
+            'description' => 'Topup 1',
+            'date' => '2024-01-01',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor2->id,
+            'type' => 'topup',
+            'amount' => 200,
+            'description' => 'Topup 2',
+            'date' => '2024-01-02',
+        ]);
+
+        // List all
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions')
+            ->assertOk()
+            ->assertJsonCount(2, 'transactions');
+
+        // Filter by supervisor 1
+        $this->actingAs($admin)
+            ->getJson("/api/admin/transactions?user_id={$supervisor1->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'transactions')
+            ->assertJsonPath('transactions.0.description', 'Topup 1');
+    }
 }
+

@@ -18,6 +18,9 @@ class TransactionController extends Controller
             ->whereHas('user', function ($query) {
                 $query->where('role', 'supervisor');
             })
+            ->when($request->filled('user_id'), function ($query) use ($request) {
+                $query->where('user_id', $request->input('user_id'));
+            })
             ->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
             ->get()
