@@ -24,6 +24,7 @@ class SupervisorController extends Controller
 
         return response()->json([
             'balance' => $balanceService->calculate($request->user()->id),
+            'department' => $request->user()->department ?? 'Site',
             'transactions' => $transactions->map(function (Transaction $transaction) {
                 return [
                     'id' => $transaction->id,

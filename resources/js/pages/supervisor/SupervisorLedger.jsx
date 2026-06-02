@@ -22,7 +22,7 @@ const normalizeUrl = (value) => {
     return url;
 };
 
-export default function SupervisorLedger() {
+export default function SupervisorLedger({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
         queryKey: ['supervisorLedger'],
@@ -49,6 +49,7 @@ export default function SupervisorLedger() {
                 onClose={() => setIsModalOpen(false)} 
                 onRefresh={refetch}
                 maxAmount={data?.balance}
+                department={data?.department || user?.department || 'Site'}
             />
 
             <div className="rounded-[2rem] border border-slate-200/60 bg-white p-6 shadow-sm relative overflow-hidden">

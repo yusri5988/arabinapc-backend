@@ -104,6 +104,9 @@ export default function AdminTopup() {
                                 </div>
                                 <div>
                                     <p className="text-slate-900 font-bold leading-tight">{sv.name}</p>
+                                    {sv.department && (
+                                        <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{sv.department}</span>
+                                    )}
                                     <p className="text-emerald-600 text-[13px] font-bold mt-0.5">
                                         <span className="text-[10px] text-slate-400 mr-1 font-semibold uppercase tracking-wider">Bal</span>
                                         RM {sv.balance}
@@ -133,6 +136,7 @@ export default function AdminTopup() {
                             <thead className="bg-slate-50/50 text-slate-400 text-xs uppercase tracking-widest font-bold border-b border-slate-100">
                                 <tr>
                                     <th className="px-6 py-5">Staff Member</th>
+                                    <th className="px-6 py-5">Department</th>
                                     <th className="px-6 py-5 text-right">Current Balance (RM)</th>
                                     <th className="px-6 py-5 text-center">Action</th>
                                 </tr>
@@ -147,6 +151,9 @@ export default function AdminTopup() {
                                                 </div>
                                                 <span className="text-slate-900 font-bold">{sv.name}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">{sv.department || 'Site'}</span>
                                         </td>
                                         <td className="px-6 py-4 text-right text-[15px] font-black text-slate-900">{sv.balance}</td>
                                         <td className="px-6 py-4 text-center">

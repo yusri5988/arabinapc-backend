@@ -30,6 +30,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'role' => 'supervisor',
+            'department' => null,
             'balance' => 0,
         ];
     }
@@ -38,6 +39,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => 'admin',
+            'department' => null,
         ]);
     }
 
@@ -45,6 +47,28 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => 'supervisor',
+            'department' => 'Site',
+        ]);
+    }
+
+    public function siteDepartment(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'department' => 'Site',
+        ]);
+    }
+
+    public function humanResourceDepartment(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'department' => 'Human Resource',
+        ]);
+    }
+
+    public function salesManagerDepartment(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'department' => 'Sales Manager',
         ]);
     }
 
@@ -52,6 +76,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => 'developer',
+            'department' => null,
         ]);
     }
 

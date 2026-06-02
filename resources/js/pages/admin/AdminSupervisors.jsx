@@ -215,6 +215,9 @@ export default function AdminSupervisors() {
                                 <div className="flex-1 min-w-0">
                                     <p className="text-slate-900 font-bold text-[16px] truncate leading-tight">{sv.name}</p>
                                     <p className="text-slate-400 text-[12px] font-medium truncate mt-0.5">{sv.phone}</p>
+                                    {sv.department && (
+                                        <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{sv.department}</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -271,6 +274,7 @@ export default function AdminSupervisors() {
                         <thead className="bg-slate-50/50 text-slate-400 text-xs uppercase tracking-widest font-bold border-b border-slate-100">
                             <tr>
                                 <th className="px-6 py-5">Staff Member</th>
+                                <th className="px-6 py-5">Department</th>
                                 <th className="px-6 py-5">Phone Number</th>
                                 <th className="px-6 py-5 text-right">Balance (RM)</th>
                                 <th className="px-6 py-5 text-center">Action</th>
@@ -286,6 +290,9 @@ export default function AdminSupervisors() {
                                             </div>
                                             <span className="text-slate-900 font-bold">{sv.name}</span>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">{sv.department || 'Site'}</span>
                                     </td>
                                     <td className="px-6 py-4 text-slate-500 font-medium">{sv.phone}</td>
                                     <td className="px-6 py-4 text-right text-[15px] font-black text-slate-900">{sv.balance}</td>

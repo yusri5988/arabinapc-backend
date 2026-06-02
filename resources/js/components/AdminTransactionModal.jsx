@@ -1,28 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Loader2, X } from 'lucide-react';
 import api from '../lib/axios';
 import { normalizeSupervisors } from '../lib/normalize';
-
-const DETAILS_OPTIONS = [
-    'Site Meal',
-    'Upkeep Motor Vehicle',
-    'Upkeep Hostel',
-    'Upkeep Office',
-    'Maintenance Motor Vehicle',
-    'Stationary & Printing',
-    'Hardware',
-    'Fuel',
-    'Travel Expenses',
-    'Logistic to Site',
-    'Uniform',
-    'Tools & Equipment',
-    'Welfare',
-    'TNG',
-    'Advertising',
-    'Others',
-];
+import { getDetailsOptions } from '../lib/expenseDetails';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -94,9 +76,28 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
         }
     }, [isOpen, isEdit, transaction]);
 
-    if (!isOpen) return null;
-
     const isExpense = form.type === 'expense';
+
+    const selectedDepartment = useMemo(() => {
+        const selected = supervisors.find((sv) => String(sv.id) === String(form.supervisor_id));
+        return selected?.department || transaction?.user?.department || 'Site';
+    }, [supervisors, form.supervisor_id, transaction]);
+
+    const detailsOptions = useMemo(() => getDetailsOptions(selectedDepartment), [selectedDepartment]);
+
+    const visibleDetailsOptions = useMemo(() => {
+        if (!form.details || detailsOptions.includes(form.details)) return detailsOptions;
+        return [form.details, ...detailsOptions];
+    }, [detailsOptions, form.details]);
+
+    useEffect(() => {
+        if (isEdit) return;
+        if (form.details && !detailsOptions.includes(form.details)) {
+            setForm((prev) => ({ ...prev, details: '' }));
+        }
+    }, [isEdit, selectedDepartment, detailsOptions, form.details]);
+
+    if (!isOpen) return null;
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -158,7 +159,7 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                                 <option value="">{supervisorsLoading ? 'Loading staff...' : 'Select staff'}</option>
                                 {supervisors.map((supervisor) => (
                                     <option key={supervisor.id} value={supervisor.id}>
-                                        {supervisor.name} {supervisor.phone ? `(${supervisor.phone})` : ''}
+                                        {supervisor.name} {supervisor.department ? `[${supervisor.department}]` : ''} {supervisor.phone ? `(${supervisor.phone})` : ''}
                                     </option>
                                 ))}
                             </select>
@@ -228,7 +229,7 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-base text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                         >
                             <option value="">Select details</option>
-                            {DETAILS_OPTIONS.map((option) => (
+                            {visibleDetailsOptions.map((option) => (
                                 <option key={option} value={option}>{option}</option>
                             ))}
                         </select>

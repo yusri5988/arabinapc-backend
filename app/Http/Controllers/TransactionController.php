@@ -41,6 +41,7 @@ class TransactionController extends Controller
                         'id' => $transaction->user?->id,
                         'name' => $transaction->user?->name,
                         'role' => $transaction->user?->role,
+                        'department' => $transaction->user?->department,
                     ],
                 ];
             });
@@ -80,6 +81,7 @@ class TransactionController extends Controller
                 'id' => $supervisor->id,
                 'name' => $supervisor->name,
                 'phone' => $supervisor->phone,
+                'department' => $supervisor->department,
                 'balance' => $balanceService->calculate($supervisor->id),
             ],
             'transactions' => $transactions,
@@ -218,6 +220,7 @@ class TransactionController extends Controller
                 'id' => $transaction->user?->id,
                 'name' => $transaction->user?->name,
                 'role' => $transaction->user?->role,
+                'department' => $transaction->user?->department,
             ],
         ];
     }

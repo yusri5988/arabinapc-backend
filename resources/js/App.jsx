@@ -130,7 +130,7 @@ function App() {
                         <Route path="supervisor" element={<SupervisorGuard user={user} token={token} />}>
                             <Route index element={<Navigate to="dashboard" replace />} />
                             <Route path="dashboard" element={<SupervisorOverview />} />
-                            <Route path="ledger" element={<SupervisorLedger />} />
+                            <Route path="ledger" element={<SupervisorLedger user={user} />} />
                         </Route>
 
                         <Route path="developer" element={<DeveloperGuard user={user} token={token} />}>

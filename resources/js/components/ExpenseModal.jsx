@@ -2,27 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Camera, Loader2, Upload, ImagePlus, Trash2, Image as ImageIcon } from 'lucide-react';
 import api from '../lib/axios';
 import { logAction } from '../lib/logger';
+import { getDetailsOptions } from '../lib/expenseDetails';
 
-const DETAILS_OPTIONS = [
-    'Site Meal',
-    'Upkeep Motor Vehicle',
-    'Upkeep Hostel',
-    'Upkeep Office',
-    'Maintenance Motor Vehicle',
-    'Stationary & Printing',
-    'Hardware',
-    'Fuel',
-    'Travel Expenses',
-    'Logistic to Site',
-    'Uniform',
-    'Tools & Equipment',
-    'Welfare',
-    'TNG',
-    'Advertising',
-    'Others',
-];
-
-export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount }) {
+export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, department = 'Site' }) {
     const cameraInputRef = useRef(null);
     const uploadInputRef = useRef(null);
     const itemCameraInputRef = useRef(null);
@@ -104,6 +86,8 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount }) 
     }, []);
 
     if (!isOpen) return null;
+
+    const detailsOptions = getDetailsOptions(department);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -610,7 +594,7 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount }) 
                             {detailsOpen && (
                                 <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                                     <div className="max-h-56 overflow-y-auto">
-                                        {DETAILS_OPTIONS.map((option) => (
+                                        {detailsOptions.map((option) => (
                                             <button
                                                 key={option}
                                                 type="button"

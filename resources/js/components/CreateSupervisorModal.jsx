@@ -5,7 +5,8 @@ import api from '../lib/axios';
 const initialForm = {
     name: '',
     phone: '',
-    password: ''
+    password: '',
+    department: 'Site'
 };
 
 export default function CreateSupervisorModal({ isOpen, onClose, onSuccess }) {
@@ -43,7 +44,8 @@ export default function CreateSupervisorModal({ isOpen, onClose, onSuccess }) {
             await api.post('/admin/supervisors', {
                 ...form,
                 name: form.name.trim(),
-                phone: form.phone.trim().replace(/[\s-]+/g, '')
+                phone: form.phone.trim().replace(/[\s-]+/g, ''),
+                department: form.department
             });
 
             onSuccess();
@@ -120,6 +122,20 @@ export default function CreateSupervisorModal({ isOpen, onClose, onSuccess }) {
                             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                             placeholder="Minimum 6 characters"
                         />
+                    </div>
+
+                    <div>
+                        <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">Department</label>
+                        <select
+                            required
+                            value={form.department}
+                            onChange={handleChange('department')}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                        >
+                            <option value="Site">Site</option>
+                            <option value="Human Resource">Human Resource</option>
+                            <option value="Sales Manager">Sales Manager</option>
+                        </select>
                     </div>
 
                     <button

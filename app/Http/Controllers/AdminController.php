@@ -65,8 +65,10 @@ class AdminController extends Controller
             'name' => ['required', 'string'],
             'phone' => ['required', 'string', 'regex:/^\+?[0-9]{8,15}$/', 'unique:users,phone'],
             'password' => ['required', 'min:6'],
+            'department' => ['nullable', Rule::in(['Site', 'Human Resource', 'Sales Manager'])],
         ], [
             'phone.regex' => 'No telefon tidak sah.',
+            'department.in' => 'Department tidak sah.',
         ]);
 
         $user = User::create([
@@ -74,6 +76,7 @@ class AdminController extends Controller
             'phone' => $request->phone,
             'password' => bcrypt($request->password),
             'role' => 'supervisor',
+            'department' => $request->department ?? 'Site',
             'balance' => 0,
         ]);
 
@@ -99,6 +102,7 @@ class AdminController extends Controller
                 'id' => $supervisor->id,
                 'name' => $supervisor->name,
                 'phone' => $supervisor->phone,
+                'department' => $supervisor->department,
             ],
         ]);
     }

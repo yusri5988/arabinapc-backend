@@ -149,6 +149,9 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Staff Member</p>
                             <p className="mt-2 text-lg font-bold text-slate-900">{supervisor.name}</p>
+                            {supervisor.department && (
+                                <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{supervisor.department}</span>
+                            )}
                             <p className="text-sm text-slate-500">{supervisor.phone}</p>
                         </div>
 
@@ -188,6 +191,9 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Staff Member</p>
                             <p className="mt-2 text-lg font-bold text-slate-900">{supervisor.name}</p>
+                            {supervisor.department && (
+                                <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{supervisor.department}</span>
+                            )}
                             <p className="text-sm text-slate-500">{supervisor.phone}</p>
                             <p className="mt-3 text-sm text-emerald-600 font-medium">Current balance: RM {supervisor.balance}</p>
                         </div>

@@ -214,7 +214,7 @@ export default function AdminTransactions() {
                                                         {tx.user?.name || 'Unknown user'}
                                                     </span>
                                                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                                    <span className="uppercase tracking-wider">{tx.user?.role || '-'}</span>
+                                                    <span className="uppercase tracking-wider">{tx.user?.department || tx.user?.role || '-'}</span>
                                                 </div>
                                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
                                                     <span>{formatDate(tx.date)}</span>
@@ -313,7 +313,7 @@ export default function AdminTransactions() {
                                                     <UserRound size={14} className="text-slate-400" />
                                                     <span>{tx.user?.name || 'Unknown user'}</span>
                                                     <span className="text-[10px] uppercase tracking-widest text-slate-400">
-                                                        {tx.user?.role || '-'}
+                                                        {tx.user?.department || tx.user?.role || '-'}
                                                     </span>
                                                 </div>
                                             </td>
