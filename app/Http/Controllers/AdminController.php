@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ExportAllTransactionsExcelJob;
+use App\Jobs\ExportConsolidatedReportJob;
 use App\Jobs\ExportSupervisorExcelJob;
 use App\Models\Transaction;
 use App\Models\User;
@@ -272,6 +274,99 @@ class AdminController extends Controller
         }
 
         return response()->download($filePath, $fileName)->deleteFileAfterSend(true);
+    }
+
+    public function exportAllTransactions()
+    {
+        $jobId = (string) Str::uuid();
+
+        Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
+
+        ExportAllTransactionsExcelJob::dispatch($jobId);
+
+        return response()->json(['job_id' => $jobId]);
+    }
+
+    public function consolidatedReportData(Request $request)
+    {
+        $startDate = $request->input('start_date', now()->startOfMonth()->toDateString());
+        $endDate = $request->input('end_date', now()->endOfMonth()->toDateString());
+
+        $transactions = Transaction::with('user')
+            ->whereHas('user', fn ($q) => $q->where('role', 'supervisor'))
+            ->whereBetween('date', [$startDate, $endDate])
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        $totalTopup = $transactions->where('type', 'topup')->sum('amount');
+        $totalExpense = $transactions->where('type', 'expense')->sum('amount');
+
+        $byStaff = $transactions->groupBy('user_id')->map(function ($staffTx, $userId) {
+            $user = $staffTx->first()->user;
+            $staffTopup = $staffTx->where('type', 'topup')->sum('amount');
+            $staffExpense = $staffTx->where('type', 'expense')->sum('amount');
+
+            return [
+                'user_id' => $userId,
+                'name' => $user?->name ?? 'Unknown',
+                'department' => $user?->department ?? '-',
+                'total_topup' => (float) $staffTopup,
+                'total_expense' => (float) $staffExpense,
+                'balance' => (float) ($staffTopup - $staffExpense),
+                'transaction_count' => $staffTx->count(),
+            ];
+        })->values();
+
+        $byDepartment = $transactions->groupBy(fn ($tx) => $tx->user?->department ?? 'Unknown')->map(function ($deptTx, $department) {
+            return [
+                'department' => $department,
+                'total_staff' => $deptTx->pluck('user_id')->unique()->count(),
+                'total_topup' => (float) $deptTx->where('type', 'topup')->sum('amount'),
+                'total_expense' => (float) $deptTx->where('type', 'expense')->sum('amount'),
+                'balance' => (float) ($deptTx->where('type', 'topup')->sum('amount') - $deptTx->where('type', 'expense')->sum('amount')),
+            ];
+        })->values();
+
+        $topExpenses = $transactions->where('type', 'expense')->sortByDesc('amount')->take(10)->map(fn ($tx) => [
+            'date' => optional($tx->date)->format('d/m/Y') ?? '',
+            'staff' => $tx->user?->name ?? 'Unknown',
+            'payment_to' => $tx->payment_to ?? '-',
+            'details' => $tx->details ?: $tx->description ?? '',
+            'amount' => (float) $tx->amount,
+            'site_id' => $tx->site_id ?? '',
+        ])->values();
+
+        return response()->json([
+            'summary' => [
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_staff' => $transactions->pluck('user_id')->unique()->count(),
+                'total_transactions' => $transactions->count(),
+                'total_topup' => (float) $totalTopup,
+                'total_expense' => (float) $totalExpense,
+                'balance' => (float) ($totalTopup - $totalExpense),
+            ],
+            'by_staff' => $byStaff,
+            'by_department' => $byDepartment,
+            'top_expenses' => $topExpenses,
+        ]);
+    }
+
+    public function exportConsolidatedReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+        ]);
+
+        $jobId = (string) Str::uuid();
+
+        Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
+
+        ExportConsolidatedReportJob::dispatch($jobId, $request->start_date, $request->end_date);
+
+        return response()->json(['job_id' => $jobId]);
     }
 
     private function normalizePhone(string $phone): string

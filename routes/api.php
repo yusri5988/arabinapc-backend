@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/transactions/{transaction}', [TransactionController::class, 'update']);
         Route::delete('/admin/transactions/{transaction}', [TransactionController::class, 'destroy']);
         Route::get('/admin/supervisors/{supervisor}/transactions', [TransactionController::class, 'supervisorHistory']);
+        Route::post('/admin/transactions/export-excel', [AdminController::class, 'exportAllTransactions']);
+        Route::get('/admin/transactions/consolidated-report', [AdminController::class, 'consolidatedReportData']);
+        Route::post('/admin/transactions/consolidated-report/export', [AdminController::class, 'exportConsolidatedReport']);
         Route::post('/admin/supervisors/{supervisor}/export-excel', [AdminController::class, 'exportSupervisorExcel']);
         Route::get('/admin/export-status/{jobId}', [AdminController::class, 'exportStatus']);
         Route::get('/admin/export-download/{jobId}', [AdminController::class, 'exportDownload']);
