@@ -59,6 +59,14 @@ const getErrorMessage = (error) => {
     return data?.message || error?.message || 'Something went wrong.';
 };
 
+const isMoneyIn = (transaction) => transaction.type === 'topup';
+
+const transactionLabel = (transaction) => {
+    if (transaction.type === 'topup') return 'Cash in';
+    if (transaction.type === 'return_to_admin') return 'Returned to Admin';
+    return 'Expense';
+};
+
 export default function AdminTransactions() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -405,11 +413,11 @@ export default function AdminTransactions() {
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-3 min-w-0">
                                             <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
-                                                tx.type === 'topup'
+                                                isMoneyIn(tx)
                                                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
                                                     : 'bg-white border-slate-200 text-slate-700'
                                             }`}>
-                                                {tx.type === 'topup' ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
+                                                {isMoneyIn(tx) ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 text-[15px] leading-tight truncate">{tx.description || 'No description'}</p>
@@ -450,33 +458,37 @@ export default function AdminTransactions() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <p className={`text-[16px] font-black tracking-tight ${tx.type === 'topup' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                {tx.type === 'topup' ? '+' : '-'}RM {money(tx.amount)}
+                                        <p className={`text-[16px] font-black tracking-tight ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                            {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
                                             </p>
                                             <p className="text-[9px] text-slate-400 font-bold tracking-widest mt-0.5">
                                                 #{tx.id.toString().padStart(4, '0')}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="mt-4 grid grid-cols-2 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => openEditModal(tx)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-emerald-600"
-                                        >
-                                            <Pencil size={14} />
-                                            Edit
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={deletingId === tx.id}
-                                            onClick={() => handleDelete(tx)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
-                                        >
-                                            <Trash2 size={14} />
-                                            {deletingId === tx.id ? 'Deleting...' : 'Delete'}
-                                        </button>
-                                    </div>
+                                    {tx.type === 'return_to_admin' ? (
+                                        <span className="text-[10px] text-slate-400 font-semibold">System record</span>
+                                    ) : (
+                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditModal(tx)}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:text-emerald-600"
+                                            >
+                                                <Pencil size={14} />
+                                                Edit
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={deletingId === tx.id}
+                                                onClick={() => handleDelete(tx)}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                            >
+                                                <Trash2 size={14} />
+                                                {deletingId === tx.id ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -498,16 +510,16 @@ export default function AdminTransactions() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 flex items-center justify-center rounded-2xl shrink-0 border ${
-                                                        tx.type === 'topup'
+                                                        isMoneyIn(tx)
                                                             ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
                                                             : 'bg-white border-slate-200 text-slate-700'
                                                     }`}>
-                                                        {tx.type === 'topup' ? <ArrowDownLeft size={18} strokeWidth={2.5} /> : <ArrowUpRight size={18} strokeWidth={2.5} />}
+                                                        {isMoneyIn(tx) ? <ArrowDownLeft size={18} strokeWidth={2.5} /> : <ArrowUpRight size={18} strokeWidth={2.5} />}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="font-bold text-slate-900 truncate">{tx.description || 'No description'}</p>
                                                         <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                            {tx.site_id ? `Site ${tx.site_id}` : 'No site reference'}
+                                                            {tx.site_id ? `Site ${tx.site_id}` : transactionLabel(tx)}
                                                             {tx.receipt_url ? ' • Receipt attached' : ''}
                                                         </p>
                                                     </div>
@@ -524,30 +536,34 @@ export default function AdminTransactions() {
                                             </td>
                                             <td className="px-6 py-4 text-slate-500 font-medium">{formatDate(tx.date)}</td>
                                             <td className="px-6 py-4 text-right">
-                                                <p className={`text-[15px] font-black ${tx.type === 'topup' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                    {tx.type === 'topup' ? '+' : '-'}RM {money(tx.amount)}
+                                                <p className={`text-[15px] font-black ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                    {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
                                                 </p>
                                             </td>
                                             <td className="sticky right-0 z-10 bg-white px-4 py-4 shadow-[-8px_0_16px_-16px_rgba(15,23,42,0.35)] group-hover:bg-slate-50/95">
-                                                <div className="flex justify-end gap-2 whitespace-nowrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openEditModal(tx)}
-                                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-                                                    >
-                                                        <Pencil size={14} />
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={deletingId === tx.id}
-                                                        onClick={() => handleDelete(tx)}
-                                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                        {deletingId === tx.id ? 'Deleting...' : 'Delete'}
-                                                    </button>
-                                                </div>
+                                                {tx.type === 'return_to_admin' ? (
+                                                    <span className="text-[10px] text-slate-400 font-semibold">System record</span>
+                                                ) : (
+                                                    <div className="flex justify-end gap-2 whitespace-nowrap">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditModal(tx)}
+                                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                                                        >
+                                                            <Pencil size={14} />
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={deletingId === tx.id}
+                                                            onClick={() => handleDelete(tx)}
+                                                            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                            {deletingId === tx.id ? 'Deleting...' : 'Delete'}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -620,7 +636,7 @@ export default function AdminTransactions() {
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                             <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4 shadow-sm">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-sky-500">Staff</p>
                                 <p className="text-xl font-black text-sky-700 mt-1">{consolidatedData.summary.total_staff}</p>
@@ -636,6 +652,10 @@ export default function AdminTransactions() {
                             <div className="rounded-2xl border border-red-100 bg-red-50 p-4 shadow-sm">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-red-500">Total Expense</p>
                                 <p className="text-xl font-black text-red-700 mt-1">RM {money(consolidatedData.summary.total_expense)}</p>
+                            </div>
+                            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 shadow-sm">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-rose-500">Returned to Admin</p>
+                                <p className="text-xl font-black text-rose-700 mt-1">RM {money(consolidatedData.summary.total_returned_to_admin)}</p>
                             </div>
                             <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 shadow-sm">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500">Balance</p>
@@ -656,6 +676,7 @@ export default function AdminTransactions() {
                                             <th className="px-3 py-3">Department</th>
                                             <th className="px-3 py-3 text-right">Topup</th>
                                             <th className="px-3 py-3 text-right">Expense</th>
+                                            <th className="px-3 py-3 text-right">Returned</th>
                                             <th className="px-3 py-3 text-right">Balance</th>
                                             <th className="px-3 py-3 text-right"># Tx</th>
                                         </tr>
@@ -667,6 +688,7 @@ export default function AdminTransactions() {
                                                 <td className="px-3 py-3 text-slate-500 font-medium">{staff.department}</td>
                                                 <td className="px-3 py-3 text-right font-semibold text-emerald-600">RM {money(staff.total_topup)}</td>
                                                 <td className="px-3 py-3 text-right font-semibold text-red-600">RM {money(staff.total_expense)}</td>
+                                                <td className="px-3 py-3 text-right font-semibold text-rose-600">RM {money(staff.total_returned_to_admin)}</td>
                                                 <td className="px-3 py-3 text-right font-bold text-slate-900">RM {money(staff.balance)}</td>
                                                 <td className="px-3 py-3 text-right font-medium text-slate-500">{staff.transaction_count}</td>
                                             </tr>
@@ -690,6 +712,7 @@ export default function AdminTransactions() {
                                             <th className="px-3 py-3 text-right">Staff</th>
                                             <th className="px-3 py-3 text-right">Topup</th>
                                             <th className="px-3 py-3 text-right">Expense</th>
+                                            <th className="px-3 py-3 text-right">Returned</th>
                                             <th className="px-3 py-3 text-right">Balance</th>
                                         </tr>
                                     </thead>
@@ -700,6 +723,7 @@ export default function AdminTransactions() {
                                                 <td className="px-3 py-3 text-right font-medium text-slate-500">{dept.total_staff}</td>
                                                 <td className="px-3 py-3 text-right font-semibold text-emerald-600">RM {money(dept.total_topup)}</td>
                                                 <td className="px-3 py-3 text-right font-semibold text-red-600">RM {money(dept.total_expense)}</td>
+                                                <td className="px-3 py-3 text-right font-semibold text-rose-600">RM {money(dept.total_returned_to_admin)}</td>
                                                 <td className="px-3 py-3 text-right font-bold text-slate-900">RM {money(dept.balance)}</td>
                                             </tr>
                                         ))}

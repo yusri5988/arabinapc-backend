@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/axios';
 import { normalizeSupervisors } from '../../lib/normalize';
-import { Wallet, ArrowUpRight, Send, UserPlus, History, KeyRound, Loader2, FileDown } from 'lucide-react';
+import { Wallet, ArrowUpRight, Send, UserPlus, History, KeyRound, Loader2, FileDown, RotateCcw, X } from 'lucide-react';
 import CreateSupervisorModal from '../../components/CreateSupervisorModal';
 import SupervisorTopupModal from '../../components/SupervisorTopupModal';
 import { Link } from 'react-router-dom';
@@ -12,9 +12,13 @@ export default function AdminSupervisors() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [resettingSupervisorId, setResettingSupervisorId] = useState(null);
     const [resetFeedback, setResetFeedback] = useState(null);
+    const [receivingBackSupervisorId, setReceivingBackSupervisorId] = useState(null);
+    const [receiveBackSupervisor, setReceiveBackSupervisor] = useState(null);
+    const [receiveBackFeedback, setReceiveBackFeedback] = useState(null);
     const [exportingSupervisorId, setExportingSupervisorId] = useState(null);
     const exportPollRef = useRef(null);
     const exportTimeoutRef = useRef(null);
+    const receiveBackCancelRef = useRef(null);
 
     const stopExportPolling = useCallback(() => {
         if (exportPollRef.current) {
@@ -32,6 +36,22 @@ export default function AdminSupervisors() {
             stopExportPolling();
         };
     }, [stopExportPolling]);
+
+    useEffect(() => {
+        if (!receiveBackSupervisor) return;
+
+        receiveBackCancelRef.current?.focus();
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && !receivingBackSupervisorId) {
+                setReceiveBackSupervisor(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [receiveBackSupervisor, receivingBackSupervisorId]);
 
     const { data, isLoading, isError, error, refetch } = useQuery({
         queryKey: ['adminSupervisors'],
@@ -67,6 +87,51 @@ export default function AdminSupervisors() {
             setResettingSupervisorId(null);
         }
     };
+
+    const handleOpenReceiveBackConfirm = (supervisor) => {
+        const balance = Number(supervisor.balance ?? 0);
+
+        if (balance <= 0) {
+            setReceiveBackFeedback({
+                type: 'error',
+                message: `${supervisor.name} does not have any petty cash balance to receive back.`
+            });
+            return;
+        }
+
+        setReceiveBackFeedback(null);
+        setReceiveBackSupervisor(supervisor);
+    };
+
+    const handleReceiveBack = async () => {
+        if (!receiveBackSupervisor) return;
+
+        const supervisor = receiveBackSupervisor;
+        const balance = Number(supervisor.balance ?? 0);
+
+        setReceivingBackSupervisorId(supervisor.id);
+        setReceiveBackFeedback(null);
+
+        try {
+            const res = await api.post(`/admin/supervisors/${supervisor.id}/receive-back`);
+            setReceiveBackFeedback({
+                type: 'success',
+                message: `Received back RM ${Number(res.data.amount ?? balance).toFixed(2)} from ${supervisor.name}.`
+            });
+            setReceiveBackSupervisor(null);
+            refetch();
+        } catch (err) {
+            setReceiveBackFeedback({
+                type: 'error',
+                message: err.response?.data?.message || `Unable to receive back petty cash from ${supervisor.name}.`
+            });
+            setReceiveBackSupervisor(null);
+        } finally {
+            setReceivingBackSupervisorId(null);
+        }
+    };
+
+    const canReceiveBack = (supervisor) => Number(supervisor.balance ?? 0) > 0;
 
     const handleExportExcel = async (supervisor) => {
         stopExportPolling();
@@ -152,6 +217,8 @@ export default function AdminSupervisors() {
     }
 
     const supervisors = normalizeSupervisors(data);
+    const receiveBackBalance = receiveBackSupervisor ? Number(receiveBackSupervisor.balance ?? 0) : 0;
+    const receiveBackLoading = receiveBackSupervisor && receivingBackSupervisorId === receiveBackSupervisor.id;
 
     return (
         <div className="space-y-6">
@@ -166,6 +233,87 @@ export default function AdminSupervisors() {
                 onClose={() => setSelectedSupervisor(null)}
                 onSuccess={refetch}
             />
+
+            {receiveBackSupervisor && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 md:items-center">
+                    <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="receive-back-title"
+                        aria-describedby="receive-back-description"
+                        className="w-full overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:mx-4 md:max-w-lg md:rounded-3xl"
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-5 md:p-6">
+                            <div className="flex items-center gap-3">
+                                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-600 md:p-3">
+                                    <RotateCcw size={20} />
+                                </div>
+                                <div>
+                                    <h3 id="receive-back-title" className="text-lg font-bold text-slate-900 md:text-xl">Receive Back Petty Cash</h3>
+                                    <p className="text-xs text-slate-500 md:text-sm">Return cash from staff member.</p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                aria-label="Close receive back confirmation"
+                                onClick={() => setReceiveBackSupervisor(null)}
+                                disabled={receiveBackLoading}
+                                className="p-2 text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <X size={22} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-5 p-5 md:p-6">
+                            <div className="text-center space-y-2">
+                                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50">
+                                    <RotateCcw size={28} className="text-emerald-600" />
+                                </div>
+                                <p className="text-lg font-bold text-slate-900">Confirm Receive Back</p>
+                                <p id="receive-back-description" className="text-sm text-slate-500">
+                                    Are you sure you want to receive back this amount?
+                                </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Staff Member</p>
+                                <p className="mt-2 text-lg font-bold text-slate-900">{receiveBackSupervisor.name}</p>
+                                {receiveBackSupervisor.department && (
+                                    <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{receiveBackSupervisor.department}</span>
+                                )}
+                                <p className="text-sm text-slate-500">{receiveBackSupervisor.phone}</p>
+                            </div>
+
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+                                <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Amount</p>
+                                <p className="mt-1 text-3xl font-black text-emerald-700">RM {receiveBackBalance.toFixed(2)}</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    ref={receiveBackCancelRef}
+                                    onClick={() => setReceiveBackSupervisor(null)}
+                                    disabled={receiveBackLoading}
+                                    className="flex-1 rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleReceiveBack}
+                                    disabled={receiveBackLoading}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-4 font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {receiveBackLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <RotateCcw size={18} />}
+                                    {receiveBackLoading ? 'Processing...' : 'CONFIRM RECEIVE BACK'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex items-center justify-between">
                 <div>
@@ -191,6 +339,16 @@ export default function AdminSupervisors() {
                         : 'border-red-200 bg-red-50 text-red-600'
                 }`}>
                     {resetFeedback.message}
+                </div>
+            )}
+
+            {receiveBackFeedback && (
+                <div className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    receiveBackFeedback.type === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-red-200 bg-red-50 text-red-600'
+                }`}>
+                    {receiveBackFeedback.message}
                 </div>
             )}
 
@@ -236,7 +394,7 @@ export default function AdminSupervisors() {
                                 <Wallet size={14} className="text-emerald-600" strokeWidth={2.5} />
                                 <span className="text-emerald-700 font-black tracking-tight">RM {sv.balance}</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <Link
                                     to={`/admin/supervisors/${sv.id}/transactions`}
                                     className="min-w-0 flex items-center justify-center gap-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-slate-200/60 active:scale-95 transition-all"
@@ -260,6 +418,15 @@ export default function AdminSupervisors() {
                                 >
                                     {resettingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} strokeWidth={2.5} />}
                                     Reset
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenReceiveBackConfirm(sv)}
+                                    disabled={!canReceiveBack(sv) || receivingBackSupervisorId === sv.id}
+                                    className="min-w-0 flex items-center justify-center gap-1.5 text-rose-700 hover:bg-rose-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-rose-200/70 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {receivingBackSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} strokeWidth={2.5} />}
+                                    Receive Back
                                 </button>
                             </div>
                         </div>
@@ -311,6 +478,15 @@ export default function AdminSupervisors() {
                                                 className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl font-bold transition-colors"
                                             >
                                                 Send <ArrowUpRight size={16} strokeWidth={2.5} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenReceiveBackConfirm(sv)}
+                                                disabled={!canReceiveBack(sv) || receivingBackSupervisorId === sv.id}
+                                                className="inline-flex items-center gap-2 text-rose-700 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl font-bold transition-colors border border-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {receivingBackSupervisorId === sv.id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} strokeWidth={2.5} />}
+                                                Receive Back
                                             </button>
                                             <button
                                                 type="button"

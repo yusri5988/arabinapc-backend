@@ -31,7 +31,7 @@ class SupervisorController extends Controller
                     'type' => $transaction->type,
                     'amount' => $transaction->amount,
                     'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
                     'payment_to' => $transaction->payment_to,
                     'description' => $transaction->description,
                     'site_id' => $transaction->site_id,

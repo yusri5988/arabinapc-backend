@@ -22,6 +22,8 @@ const normalizeUrl = (value) => {
     return url;
 };
 
+const isMoneyIn = (transaction) => transaction.type === 'topup';
+
 export default function SupervisorLedger({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
@@ -120,11 +122,11 @@ export default function SupervisorLedger({ user }) {
                             <div key={tx.id} className="p-4 md:p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 active:bg-slate-100">
                                 <div className="flex items-center gap-3 md:gap-4 min-w-0">
                                     <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
-                                        tx.type === 'topup' 
+                                        isMoneyIn(tx)
                                             ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
                                             : 'bg-white border-slate-200 text-slate-700'
                                     }`}>
-                                        {tx.type === 'topup' ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
+                                        {isMoneyIn(tx) ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-slate-900 font-bold text-[15px] truncate leading-tight">{tx.description}</p>
@@ -185,9 +187,9 @@ export default function SupervisorLedger({ user }) {
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className={`text-[16px] font-black tracking-tight ${
-                                        tx.type === 'topup' ? 'text-emerald-600' : 'text-slate-900'
+                                        isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'
                                     }`}>
-                                        {tx.type === 'topup' ? '+' : '-'}RM {tx.amount}
+                                        {isMoneyIn(tx) ? '+' : '-'}RM {tx.amount}
                                     </p>
                                     <p className="text-[9px] text-slate-400 font-bold tracking-widest mt-0.5">
                                         #{tx.id.toString().padStart(4, '0')}

@@ -18,7 +18,7 @@ export default function SupervisorOverview() {
         .filter((t) => t.type === 'topup')
         .reduce((total, t) => total + Number(t.amount), 0);
     const cashOut = transactions
-        .filter((t) => t.type === 'expense')
+        .filter((t) => ['expense', 'return_to_admin'].includes(t.type))
         .reduce((total, t) => total + Number(t.amount), 0);
     const receiptCount = transactions.filter((t) => Boolean(t.receipt_url)).length;
 

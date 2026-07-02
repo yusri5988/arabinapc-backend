@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->enum('type', ['topup', 'expense']);
+            $table->enum('type', ['topup', 'expense', 'return_to_admin']);
             $table->decimal('amount', 15, 2);
             $table->text('description')->nullable();
             $table->string('site_id')->nullable();

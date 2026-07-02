@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/export-download/{jobId}', [AdminController::class, 'exportDownload']);
         Route::post('/admin/supervisors', [AdminController::class, 'createSupervisor']);
         Route::post('/admin/supervisors/{supervisor}/reset-password', [AdminController::class, 'resetStaffPassword']);
+        Route::post('/admin/supervisors/{supervisor}/receive-back', [AdminController::class, 'receiveBack']);
         Route::delete('/admin/cache/clear', function () {
             Cache::flush();
 

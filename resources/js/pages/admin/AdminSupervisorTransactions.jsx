@@ -36,6 +36,14 @@ const normalizeUrl = (value) => {
     return url;
 };
 
+const isMoneyIn = (transaction) => transaction.type === 'topup';
+
+const transactionLabel = (transaction) => {
+    if (transaction.type === 'topup') return 'Cash in';
+    if (transaction.type === 'return_to_admin') return 'Returned to Admin';
+    return 'Expense';
+};
+
 export default function AdminSupervisorTransactions() {
     const { supervisorId } = useParams();
 
@@ -131,11 +139,11 @@ export default function AdminSupervisorTransactions() {
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-3 min-w-0">
                                             <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
-                                                tx.type === 'topup'
+                                                isMoneyIn(tx)
                                                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
                                                     : 'bg-white border-slate-200 text-slate-700'
                                             }`}>
-                                                {tx.type === 'topup' ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
+                                                {isMoneyIn(tx) ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 text-[15px] leading-tight truncate">{tx.description || 'No description'}</p>
@@ -168,8 +176,8 @@ export default function AdminSupervisorTransactions() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <p className={`text-[16px] font-black tracking-tight ${tx.type === 'topup' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                {tx.type === 'topup' ? '+' : '-'}RM {money(tx.amount)}
+                                        <p className={`text-[16px] font-black tracking-tight ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                            {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
                                             </p>
                                             <p className="text-[9px] text-slate-400 font-bold tracking-widest mt-0.5">
                                                 #{tx.id.toString().padStart(4, '0')}
@@ -196,16 +204,16 @@ export default function AdminSupervisorTransactions() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 flex items-center justify-center rounded-2xl shrink-0 border ${
-                                                        tx.type === 'topup'
+                                                        isMoneyIn(tx)
                                                             ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
                                                             : 'bg-white border-slate-200 text-slate-700'
                                                     }`}>
-                                                        {tx.type === 'topup' ? <ArrowDownLeft size={18} strokeWidth={2.5} /> : <ArrowUpRight size={18} strokeWidth={2.5} />}
+                                                        {isMoneyIn(tx) ? <ArrowDownLeft size={18} strokeWidth={2.5} /> : <ArrowUpRight size={18} strokeWidth={2.5} />}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="font-bold text-slate-900 truncate">{tx.description || 'No description'}</p>
                                                         <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                            {tx.type === 'topup' ? 'Cash in' : 'Expense'}
+                                                            {transactionLabel(tx)}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -243,8 +251,8 @@ export default function AdminSupervisorTransactions() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <p className={`text-[15px] font-black ${tx.type === 'topup' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                    {tx.type === 'topup' ? '+' : '-'}RM {money(tx.amount)}
+                                                <p className={`text-[15px] font-black ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                    {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
                                                 </p>
                                             </td>
                                         </tr>

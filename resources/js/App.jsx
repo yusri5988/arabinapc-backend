@@ -38,6 +38,12 @@ const queryClient = new QueryClient({
     },
 });
 
+const VALID_ROLES = ['admin', 'supervisor', 'developer'];
+
+function isValidUser(user) {
+    return user && VALID_ROLES.includes(user.role);
+}
+
 function RoleRedirect({ user, token }) {
     if (!user || !token) return <Navigate to="/login" replace />;
     if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
@@ -72,7 +78,7 @@ function App() {
         const token = getToken();
         const savedUser = getUser();
 
-        if (token && savedUser) {
+        if (token && isValidUser(savedUser)) {
             setUser(savedUser);
         } else {
             clearAuth();
@@ -91,7 +97,13 @@ function App() {
 
     const token = getToken();
 
-    if (loading) return null;
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm font-semibold text-slate-500">
+                Loading...
+            </div>
+        );
+    }
 
     return (
         <QueryClientProvider client={queryClient}>
@@ -112,7 +124,7 @@ function App() {
             />
             <Router>
                 <Routes>
-                    <Route path="/login" element={!user || !token ? <Login setUser={setUser} /> : <RoleRedirect user={user} token={token} />} />
+                    <Route path="/login" element={!user || !token || !isValidUser(user) ? <Login setUser={setUser} /> : <RoleRedirect user={user} token={token} />} />
                     
                     <Route element={<Layout user={user} setUser={setUser} />}>
                         <Route path="/" element={<RoleRedirect user={user} token={token} />} />

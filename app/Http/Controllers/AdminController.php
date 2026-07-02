@@ -32,7 +32,7 @@ class AdminController extends Controller
                 'supervisors' => $supervisors,
                 'total_supervisor_cash' => $supervisor_total,
                 'total_supervisor_in' => (clone $supervisorTransactions)->where('type', 'topup')->sum('amount'),
-                'total_supervisor_out' => (clone $supervisorTransactions)->where('type', 'expense')->sum('amount'),
+                'total_supervisor_out' => (clone $supervisorTransactions)->whereIn('type', ['expense', 'return_to_admin'])->sum('amount'),
             ];
         });
     }
@@ -234,6 +234,74 @@ class AdminController extends Controller
         ]);
     }
 
+    public function receiveBack(User $supervisor, Request $request, SupervisorBalanceService $balanceService, ActivityLogService $log)
+    {
+        abort_unless($supervisor->role === 'supervisor', 404);
+
+        $admin = $request->user();
+        $previousBalance = null;
+
+        try {
+            $result = DB::transaction(function () use ($admin, $supervisor, $balanceService, $log, &$previousBalance) {
+                $supervisor = User::whereKey($supervisor->id)->lockForUpdate()->firstOrFail();
+                $previousBalance = $balanceService->calculate($supervisor->id);
+                $amount = $previousBalance;
+
+                if ($amount <= 0) {
+                    abort(422, 'Staff does not have any petty cash balance to receive back.');
+                }
+
+                Transaction::create([
+                    'user_id' => $supervisor->id,
+                    'type' => 'return_to_admin',
+                    'amount' => $amount,
+                    'payment_to' => 'Admin',
+                    'description' => 'Petty cash returned to Admin: '.$admin->name,
+                    'date' => now(),
+                    'metadata' => [
+                        'source' => 'admin_receive_back',
+                        'received_by_user_id' => $admin->id,
+                    ],
+                ]);
+
+                $newBalance = $balanceService->recalculate($supervisor);
+
+                $log->log('receive_back.transaction', 'success', [
+                    'admin_id' => $admin->id,
+                    'supervisor_id' => $supervisor->id,
+                    'amount' => $amount,
+                    'previous_balance' => $previousBalance,
+                    'new_balance' => $newBalance,
+                ]);
+
+                return [
+                    'amount' => $amount,
+                    'balance' => $newBalance,
+                ];
+            });
+        } catch (\Exception $e) {
+            $log->log('receive_back.transaction', 'fail', [
+                'admin_id' => $admin?->id,
+                'supervisor_id' => $supervisor->id,
+                'previous_balance' => $previousBalance,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        Cache::forget('ui:admin:supervisors');
+        Cache::forget('ui:admin:dashboard');
+        Cache::forget("ui:user:{$supervisor->id}");
+        Cache::forget("ui:supervisor:ledger:{$supervisor->id}");
+
+        return response()->json([
+            'message' => 'Petty cash successfully received back from staff.',
+            'amount' => $result['amount'],
+            'balance' => $result['balance'],
+        ]);
+    }
+
     public function exportSupervisorExcel(User $supervisor)
     {
         abort_unless($supervisor->role === 'supervisor', 404);
@@ -301,11 +369,13 @@ class AdminController extends Controller
 
         $totalTopup = $transactions->where('type', 'topup')->sum('amount');
         $totalExpense = $transactions->where('type', 'expense')->sum('amount');
+        $totalReturnedToAdmin = $transactions->where('type', 'return_to_admin')->sum('amount');
 
         $byStaff = $transactions->groupBy('user_id')->map(function ($staffTx, $userId) {
             $user = $staffTx->first()->user;
             $staffTopup = $staffTx->where('type', 'topup')->sum('amount');
             $staffExpense = $staffTx->where('type', 'expense')->sum('amount');
+            $staffReturnedToAdmin = $staffTx->where('type', 'return_to_admin')->sum('amount');
 
             return [
                 'user_id' => $userId,
@@ -313,7 +383,8 @@ class AdminController extends Controller
                 'department' => $user?->department ?? '-',
                 'total_topup' => (float) $staffTopup,
                 'total_expense' => (float) $staffExpense,
-                'balance' => (float) ($staffTopup - $staffExpense),
+                'total_returned_to_admin' => (float) $staffReturnedToAdmin,
+                'balance' => (float) ($staffTopup - $staffExpense - $staffReturnedToAdmin),
                 'transaction_count' => $staffTx->count(),
             ];
         })->values();
@@ -324,7 +395,8 @@ class AdminController extends Controller
                 'total_staff' => $deptTx->pluck('user_id')->unique()->count(),
                 'total_topup' => (float) $deptTx->where('type', 'topup')->sum('amount'),
                 'total_expense' => (float) $deptTx->where('type', 'expense')->sum('amount'),
-                'balance' => (float) ($deptTx->where('type', 'topup')->sum('amount') - $deptTx->where('type', 'expense')->sum('amount')),
+                'total_returned_to_admin' => (float) $deptTx->where('type', 'return_to_admin')->sum('amount'),
+                'balance' => (float) ($deptTx->where('type', 'topup')->sum('amount') - $deptTx->where('type', 'expense')->sum('amount') - $deptTx->where('type', 'return_to_admin')->sum('amount')),
             ];
         })->values();
 
@@ -345,7 +417,8 @@ class AdminController extends Controller
                 'total_transactions' => $transactions->count(),
                 'total_topup' => (float) $totalTopup,
                 'total_expense' => (float) $totalExpense,
-                'balance' => (float) ($totalTopup - $totalExpense),
+                'total_returned_to_admin' => (float) $totalReturnedToAdmin,
+                'balance' => (float) ($totalTopup - $totalExpense - $totalReturnedToAdmin),
             ],
             'by_staff' => $byStaff,
             'by_department' => $byDepartment,

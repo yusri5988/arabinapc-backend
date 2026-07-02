@@ -66,6 +66,13 @@ class ExcelExportService
                     $outflowType = '';
                     $paymentTo = $transaction->payment_to ?: 'Admin Transfer';
                     $displayDetails = $transaction->details ?: 'Topup';
+                } elseif ($transaction->type === 'return_to_admin') {
+                    $moneyIn = 0;
+                    $moneyOut = $amount;
+                    $inflowType = '';
+                    $outflowType = 'Returned to Admin';
+                    $paymentTo = $transaction->payment_to ?: 'Admin';
+                    $displayDetails = $transaction->description ?: 'Returned to Admin';
                 } else {
                     $moneyIn = 0;
                     $moneyOut = $amount;
@@ -168,6 +175,13 @@ class ExcelExportService
                 $outflowType = '';
                 $paymentTo = $transaction->payment_to ?: 'Admin Transfer';
                 $displayDetails = $transaction->details ?: 'Topup';
+            } elseif ($transaction->type === 'return_to_admin') {
+                $moneyIn = 0;
+                $moneyOut = $amount;
+                $inflowType = '';
+                $outflowType = 'Returned to Admin';
+                $paymentTo = $transaction->payment_to ?: 'Admin';
+                $displayDetails = $transaction->description ?: 'Returned to Admin';
             } else {
                 $moneyIn = 0;
                 $moneyOut = $amount;
@@ -241,6 +255,7 @@ class ExcelExportService
 
         $totalTopup = $transactions->where('type', 'topup')->sum('amount');
         $totalExpense = $transactions->where('type', 'expense')->sum('amount');
+        $totalReturnedToAdmin = $transactions->where('type', 'return_to_admin')->sum('amount');
         $distinctStaff = $transactions->pluck('user_id')->unique()->count();
 
         $spreadsheet = new Spreadsheet;
@@ -255,7 +270,8 @@ class ExcelExportService
             ['Total Transactions', $transactions->count()],
             ['Total Topup (RM)', number_format((float) $totalTopup, 2)],
             ['Total Expense (RM)', number_format((float) $totalExpense, 2)],
-            ['Balance (RM)', number_format((float) ($totalTopup - $totalExpense), 2)],
+            ['Returned to Admin (RM)', number_format((float) $totalReturnedToAdmin, 2)],
+            ['Balance (RM)', number_format((float) ($totalTopup - $totalExpense - $totalReturnedToAdmin), 2)],
         ];
 
         $sheet->fromArray($summaryData, null, 'A1');
@@ -270,33 +286,37 @@ class ExcelExportService
         $sheet2 = $spreadsheet->createSheet();
         $sheet2->setTitle('By Staff');
         $sheet2->fromArray([
-            'Staff', 'Department', 'Total Topup (RM)', 'Total Expense (RM)', 'Balance (RM)', '# Transactions',
+            'Staff', 'Department', 'Total Topup (RM)', 'Total Expense (RM)', 'Returned to Admin (RM)', 'Balance (RM)', '# Transactions',
         ], null, 'A1');
-        $headerStyle2 = $sheet2->getStyle('A1:F1');
+        $headerStyle2 = $sheet2->getStyle('A1:G1');
         $headerStyle2->getFont()->setBold(true);
         $headerStyle2->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
         $staffRow = 2;
         $grandStaffTopup = 0;
         $grandStaffExpense = 0;
+        $grandStaffReturnedToAdmin = 0;
         $grandStaffTx = 0;
 
         foreach ($byStaff as $userId => $staffTx) {
             $user = $staffTx->first()->user;
             $staffTopup = $staffTx->where('type', 'topup')->sum('amount');
             $staffExpense = $staffTx->where('type', 'expense')->sum('amount');
-            $staffBalance = $staffTopup - $staffExpense;
+            $staffReturnedToAdmin = $staffTx->where('type', 'return_to_admin')->sum('amount');
+            $staffBalance = $staffTopup - $staffExpense - $staffReturnedToAdmin;
             $txCount = $staffTx->count();
 
             $sheet2->setCellValueExplicit("A{$staffRow}", $user?->name ?? 'Unknown', DataType::TYPE_STRING);
             $sheet2->setCellValueExplicit("B{$staffRow}", $user?->department ?? '-', DataType::TYPE_STRING);
             $sheet2->setCellValueExplicit("C{$staffRow}", number_format((float) $staffTopup, 2), DataType::TYPE_STRING);
             $sheet2->setCellValueExplicit("D{$staffRow}", number_format((float) $staffExpense, 2), DataType::TYPE_STRING);
-            $sheet2->setCellValueExplicit("E{$staffRow}", number_format((float) $staffBalance, 2), DataType::TYPE_STRING);
-            $sheet2->setCellValueExplicit("F{$staffRow}", (string) $txCount, DataType::TYPE_STRING);
+            $sheet2->setCellValueExplicit("E{$staffRow}", number_format((float) $staffReturnedToAdmin, 2), DataType::TYPE_STRING);
+            $sheet2->setCellValueExplicit("F{$staffRow}", number_format((float) $staffBalance, 2), DataType::TYPE_STRING);
+            $sheet2->setCellValueExplicit("G{$staffRow}", (string) $txCount, DataType::TYPE_STRING);
 
             $grandStaffTopup += $staffTopup;
             $grandStaffExpense += $staffExpense;
+            $grandStaffReturnedToAdmin += $staffReturnedToAdmin;
             $grandStaffTx += $txCount;
             $staffRow++;
         }
@@ -305,10 +325,11 @@ class ExcelExportService
         $sheet2->getStyle("A{$staffRow}")->getFont()->setBold(true);
         $sheet2->setCellValueExplicit("C{$staffRow}", number_format((float) $grandStaffTopup, 2), DataType::TYPE_STRING);
         $sheet2->setCellValueExplicit("D{$staffRow}", number_format((float) $grandStaffExpense, 2), DataType::TYPE_STRING);
-        $sheet2->setCellValueExplicit("E{$staffRow}", number_format((float) ($grandStaffTopup - $grandStaffExpense), 2), DataType::TYPE_STRING);
-        $sheet2->setCellValueExplicit("F{$staffRow}", (string) $grandStaffTx, DataType::TYPE_STRING);
+        $sheet2->setCellValueExplicit("E{$staffRow}", number_format((float) $grandStaffReturnedToAdmin, 2), DataType::TYPE_STRING);
+        $sheet2->setCellValueExplicit("F{$staffRow}", number_format((float) ($grandStaffTopup - $grandStaffExpense - $grandStaffReturnedToAdmin), 2), DataType::TYPE_STRING);
+        $sheet2->setCellValueExplicit("G{$staffRow}", (string) $grandStaffTx, DataType::TYPE_STRING);
 
-        foreach (range('A', 'F') as $column) {
+        foreach (range('A', 'G') as $column) {
             $sheet2->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -317,9 +338,9 @@ class ExcelExportService
         $sheet3 = $spreadsheet->createSheet();
         $sheet3->setTitle('By Department');
         $sheet3->fromArray([
-            'Department', 'Total Staff', 'Total Topup (RM)', 'Total Expense (RM)', 'Balance (RM)',
+            'Department', 'Total Staff', 'Total Topup (RM)', 'Total Expense (RM)', 'Returned to Admin (RM)', 'Balance (RM)',
         ], null, 'A1');
-        $headerStyle3 = $sheet3->getStyle('A1:E1');
+        $headerStyle3 = $sheet3->getStyle('A1:F1');
         $headerStyle3->getFont()->setBold(true);
         $headerStyle3->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -327,22 +348,26 @@ class ExcelExportService
         $grandDeptStaff = 0;
         $grandDeptTopup = 0;
         $grandDeptExpense = 0;
+        $grandDeptReturnedToAdmin = 0;
 
         foreach ($byDepartment as $department => $deptTx) {
             $deptStaffCount = $deptTx->pluck('user_id')->unique()->count();
             $deptTopup = $deptTx->where('type', 'topup')->sum('amount');
             $deptExpense = $deptTx->where('type', 'expense')->sum('amount');
-            $deptBalance = $deptTopup - $deptExpense;
+            $deptReturnedToAdmin = $deptTx->where('type', 'return_to_admin')->sum('amount');
+            $deptBalance = $deptTopup - $deptExpense - $deptReturnedToAdmin;
 
             $sheet3->setCellValueExplicit("A{$deptRow}", (string) $department, DataType::TYPE_STRING);
             $sheet3->setCellValueExplicit("B{$deptRow}", (string) $deptStaffCount, DataType::TYPE_STRING);
             $sheet3->setCellValueExplicit("C{$deptRow}", number_format((float) $deptTopup, 2), DataType::TYPE_STRING);
             $sheet3->setCellValueExplicit("D{$deptRow}", number_format((float) $deptExpense, 2), DataType::TYPE_STRING);
-            $sheet3->setCellValueExplicit("E{$deptRow}", number_format((float) $deptBalance, 2), DataType::TYPE_STRING);
+            $sheet3->setCellValueExplicit("E{$deptRow}", number_format((float) $deptReturnedToAdmin, 2), DataType::TYPE_STRING);
+            $sheet3->setCellValueExplicit("F{$deptRow}", number_format((float) $deptBalance, 2), DataType::TYPE_STRING);
 
             $grandDeptStaff += $deptStaffCount;
             $grandDeptTopup += $deptTopup;
             $grandDeptExpense += $deptExpense;
+            $grandDeptReturnedToAdmin += $deptReturnedToAdmin;
             $deptRow++;
         }
 
@@ -351,9 +376,10 @@ class ExcelExportService
         $sheet3->setCellValueExplicit("B{$deptRow}", (string) $grandDeptStaff, DataType::TYPE_STRING);
         $sheet3->setCellValueExplicit("C{$deptRow}", number_format((float) $grandDeptTopup, 2), DataType::TYPE_STRING);
         $sheet3->setCellValueExplicit("D{$deptRow}", number_format((float) $grandDeptExpense, 2), DataType::TYPE_STRING);
-        $sheet3->setCellValueExplicit("E{$deptRow}", number_format((float) ($grandDeptTopup - $grandDeptExpense), 2), DataType::TYPE_STRING);
+        $sheet3->setCellValueExplicit("E{$deptRow}", number_format((float) $grandDeptReturnedToAdmin, 2), DataType::TYPE_STRING);
+        $sheet3->setCellValueExplicit("F{$deptRow}", number_format((float) ($grandDeptTopup - $grandDeptExpense - $grandDeptReturnedToAdmin), 2), DataType::TYPE_STRING);
 
-        foreach (range('A', 'E') as $column) {
+        foreach (range('A', 'F') as $column) {
             $sheet3->getColumnDimension($column)->setAutoSize(true);
         }
 

@@ -30,7 +30,7 @@ class TransactionController extends Controller
                     'type' => $transaction->type,
                     'amount' => $transaction->amount,
                     'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
                     'payment_to' => $transaction->payment_to,
                     'description' => $transaction->description,
                     'site_id' => $transaction->site_id,
@@ -66,7 +66,7 @@ class TransactionController extends Controller
                     'type' => $transaction->type,
                     'amount' => $transaction->amount,
                     'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
                     'payment_to' => $transaction->payment_to,
                     'description' => $transaction->description,
                     'site_id' => $transaction->site_id,
@@ -141,6 +141,10 @@ class TransactionController extends Controller
     {
         abort_unless($transaction->user?->role === 'supervisor', 404);
 
+        if ($transaction->type === 'return_to_admin') {
+            abort(403, 'Receive-back transactions cannot be edited.');
+        }
+
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'payment_to' => ['nullable', 'string', 'max:255'],
@@ -181,6 +185,10 @@ class TransactionController extends Controller
     {
         abort_unless($transaction->user?->role === 'supervisor', 404);
 
+        if ($transaction->type === 'return_to_admin') {
+            abort(403, 'Receive-back transactions cannot be deleted.');
+        }
+
         $supervisorId = $transaction->user_id;
 
         DB::transaction(function () use ($transaction, $balanceService, $supervisorId) {
@@ -208,7 +216,7 @@ class TransactionController extends Controller
             'type' => $transaction->type,
             'amount' => $transaction->amount,
             'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-            'money_out' => $transaction->type === 'expense' ? $transaction->amount : 0,
+            'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
             'payment_to' => $transaction->payment_to,
             'details' => $transaction->details,
             'description' => $transaction->description,
