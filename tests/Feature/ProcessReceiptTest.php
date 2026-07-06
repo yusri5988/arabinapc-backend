@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\ProcessReceiptJob;
 use App\Models\User;
+use App\Services\ImageCompressionService;
 use App\Services\ReceiptProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -141,7 +142,7 @@ class ProcessReceiptTest extends TestCase
         $this->assertNotEmpty($storedFiles);
 
         $job = new ProcessReceiptJob($storedFiles[0], $receiptUrl, $jobId);
-        $job->handle(app(ReceiptProcessingService::class));
+        $job->handle(app(ReceiptProcessingService::class), app(ImageCompressionService::class));
 
         $result = Cache::get("job_result:{$jobId}");
         $this->assertEquals('completed', $result['status']);

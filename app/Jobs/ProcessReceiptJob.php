@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Services\ImageCompressionService;
 use App\Services\ReceiptProcessingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,7 +26,7 @@ class ProcessReceiptJob implements ShouldQueue
         public string $jobId,
     ) {}
 
-    public function handle(ReceiptProcessingService $service): void
+    public function handle(ReceiptProcessingService $service, ImageCompressionService $compressionService): void
     {
         try {
             $dto = $service->processStored($this->storedPath, $this->receiptUrl);
@@ -34,6 +35,8 @@ class ProcessReceiptJob implements ShouldQueue
                 'status' => 'completed',
                 'data' => $dto->toArray(),
             ], 300);
+
+            $compressionService->compress($this->storedPath);
         } catch (\Throwable $exception) {
             Log::error('ProcessReceiptJob failed.', [
                 'job_id' => $this->jobId,

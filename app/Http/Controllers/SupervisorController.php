@@ -196,7 +196,7 @@ class SupervisorController extends Controller
     {
         try {
             $request->validate([
-                'receipt' => 'required|image|max:20480',
+                'receipt' => 'required|image|max:10240',
                 'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
             ]);
             $log->log('receipt.validation', 'success', [
