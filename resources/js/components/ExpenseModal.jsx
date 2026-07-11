@@ -4,6 +4,9 @@ import api from '../lib/axios';
 import { logAction } from '../lib/logger';
 import { getDetailsOptions } from '../lib/expenseDetails';
 
+const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_IMAGE_SIZE_LABEL = '15 MB';
+
 export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, department = 'Site' }) {
     const cameraInputRef = useRef(null);
     const uploadInputRef = useRef(null);
@@ -97,8 +100,24 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
 
         logAction('receipt.upload_started', 'success', {
             file_name: file.name,
+            file_size: file.size,
             site_id: siteId,
         });
+
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+            const message = `Saiz imej tidak boleh melebihi ${MAX_IMAGE_SIZE_LABEL}.`;
+            logAction('receipt.validation', 'fail', {
+                file_name: file.name,
+                file_size: file.size,
+                status: 'rejected_client_size',
+                error: message,
+            });
+            setOcrError(message);
+            setReceiptFileName('');
+            setProcessing(false);
+            e.target.value = '';
+            return;
+        }
 
         if (!siteId) {
             alert('Sila masukkan Site ID terlebih dahulu sebelum memuat naik resit.');
@@ -223,8 +242,24 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
 
         logAction('item_image.upload_started', 'success', {
             file_count: files.length,
+            files: files.map((file) => ({ file_name: file.name, file_size: file.size })),
             site_id: siteId,
         });
+
+        const oversizedFiles = files.filter((file) => file.size > MAX_IMAGE_SIZE_BYTES);
+        if (oversizedFiles.length > 0) {
+            const message = `Saiz imej tidak boleh melebihi ${MAX_IMAGE_SIZE_LABEL}.`;
+            logAction('item_image.validation', 'fail', {
+                file_names: oversizedFiles.map((file) => file.name),
+                file_sizes: oversizedFiles.map((file) => file.size),
+                status: 'rejected_client_size',
+                error: message,
+            });
+            setItemImageError(`${message} Fail: ${oversizedFiles.map((file) => file.name).join(', ')}`);
+            setItemImageProcessing(false);
+            e.target.value = '';
+            return;
+        }
 
         if (!siteId) {
             alert('Sila masukkan Site ID terlebih dahulu sebelum memuat naik gambar barang.');
@@ -427,7 +462,7 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
                                     </div>
                                     <p className="text-slate-600 font-bold text-center text-sm md:text-base">
                                         Add item photos<br />
-                                        <span className="text-xs text-slate-400">Snap pictures or upload from gallery, up to 4</span>
+                                        <span className="text-xs text-slate-400">Snap pictures or upload from gallery, up to 4 (maksimum 15 MB setiap imej)</span>
                                     </p>
                                     <div className="grid grid-cols-2 gap-3 w-full mt-2">
                                         <button
@@ -527,7 +562,7 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
                                     </div>
                                     <p className="text-slate-600 font-bold text-center text-sm md:text-base">
                                         Add receipt image<br />
-                                        <span className="text-xs text-slate-400">AI will auto-fill the form</span>
+                                        <span className="text-xs text-slate-400">AI will auto-fill the form (maksimum 15 MB)</span>
                                     </p>
                                     <div className="grid grid-cols-2 gap-3 w-full mt-2">
                                         <button
