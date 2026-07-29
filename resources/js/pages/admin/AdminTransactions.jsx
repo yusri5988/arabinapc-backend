@@ -494,13 +494,13 @@ export default function AdminTransactions() {
                         </div>
 
                         <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full min-w-[920px] text-left">
+                            <table className="w-full min-w-[700px] text-left">
                                 <thead className="bg-slate-50/50 text-slate-400 text-xs uppercase tracking-widest font-bold border-b border-slate-100">
                                     <tr>
                                         <th className="px-6 py-5">Transaction</th>
-                                        <th className="px-6 py-5">User</th>
+                                        <th className="px-6 py-5">Amount</th>
                                         <th className="px-6 py-5">Date</th>
-                                        <th className="px-6 py-5 text-right">Amount</th>
+                                        <th className="px-6 py-5">User</th>
                                         <th className="sticky right-0 z-10 bg-slate-50/95 px-4 py-5 text-right shadow-[-8px_0_16px_-16px_rgba(15,23,42,0.35)]">Actions</th>
                                     </tr>
                                 </thead>
@@ -526,6 +526,12 @@ export default function AdminTransactions() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
+                                                <p className={`text-[15px] font-black ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                    {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
+                                                </p>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 font-medium">{formatDate(tx.date)}</td>
+                                            <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2 text-slate-700 font-semibold">
                                                     <UserRound size={14} className="text-slate-400" />
                                                     <span>{tx.user?.name || 'Unknown user'}</span>
@@ -534,15 +540,11 @@ export default function AdminTransactions() {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-slate-500 font-medium">{formatDate(tx.date)}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <p className={`text-[15px] font-black ${isMoneyIn(tx) ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                    {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
-                                                </p>
-                                            </td>
                                             <td className="sticky right-0 z-10 bg-white px-4 py-4 shadow-[-8px_0_16px_-16px_rgba(15,23,42,0.35)] group-hover:bg-slate-50/95">
                                                 {tx.type === 'return_to_admin' ? (
-                                                    <span className="text-[10px] text-slate-400 font-semibold">System record</span>
+                                                    <div className="flex justify-center">
+                                                        <span className="text-[10px] text-slate-400 font-semibold">System record</span>
+                                                    </div>
                                                 ) : (
                                                     <div className="flex justify-end gap-2 whitespace-nowrap">
                                                         <button

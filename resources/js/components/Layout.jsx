@@ -205,7 +205,7 @@ export default function Layout({ user, setUser }) {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 p-5 md:p-10 pt-24 md:pt-10 pb-32 md:pb-10 max-w-5xl mx-auto w-full overflow-x-hidden">
+            <main className="flex-1 p-5 md:p-10 pt-24 md:pt-10 pb-32 md:pb-10 max-w-7xl mx-auto w-full overflow-x-hidden">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={location.pathname}
