@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\DTOs\GoogleDriveImageSyncResultDTO;
-use App\Jobs\UploadToGoogleDriveJob;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -64,35 +63,6 @@ class GoogleDriveImageSyncService
             skipped: $skipped,
             failures: $failures,
         );
-    }
-
-    public function dispatchAll(): int
-    {
-        $dispatched = 0;
-
-        foreach (self::ROOTS as $root) {
-            foreach ($this->localFiles($root) as $path) {
-                if (! $this->isSiteImagePath($path)) {
-                    continue;
-                }
-
-                try {
-                    if ($this->googleDriveService->exists($path)) {
-                        continue;
-                    }
-
-                    UploadToGoogleDriveJob::dispatch($path);
-                    $dispatched++;
-                } catch (\Throwable $exception) {
-                    Log::warning('Google Drive image sync dispatch failed.', [
-                        'path' => $path,
-                        'message' => $exception->getMessage(),
-                    ]);
-                }
-            }
-        }
-
-        return $dispatched;
     }
 
     /**

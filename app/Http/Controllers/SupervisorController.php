@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ProcessReceiptJob;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\ExpenseItemImageService;
+use App\Services\ImageCompressionService;
 use App\Services\ReceiptProcessingService;
 use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
@@ -192,7 +192,12 @@ class SupervisorController extends Controller
         return response()->json($imageData->toArray());
     }
 
-    public function processReceipt(Request $request, ReceiptProcessingService $receiptProcessingService, ActivityLogService $log)
+    public function processReceipt(
+        Request $request,
+        ReceiptProcessingService $receiptProcessingService,
+        ImageCompressionService $compressionService,
+        ActivityLogService $log,
+    )
     {
         try {
             $request->validate([
@@ -235,17 +240,33 @@ class SupervisorController extends Controller
 
             Cache::put("job_result:{$jobId}", ['status' => 'processing'], 300);
 
-            ProcessReceiptJob::dispatch($stored['storedPath'], $stored['receiptUrl'], $jobId);
-            $log->log('receipt.job_dispatched', 'success', [
+            $dto = $receiptProcessingService->processStored(
+                $stored['storedPath'],
+                $stored['receiptUrl'],
+            );
+
+            Cache::put("job_result:{$jobId}", [
+                'status' => 'completed',
+                'data' => $dto->toArray(),
+            ], 300);
+
+            $compressionService->compress($stored['storedPath']);
+
+            $log->log('receipt.processed', 'success', [
                 'supervisor_id' => $request->user()->id,
                 'job_id' => $jobId,
             ]);
-        } catch (\Exception $e) {
-            $log->log('receipt.job_dispatched', 'fail', [
+        } catch (\Throwable $e) {
+            Cache::put("job_result:{$jobId}", [
+                'status' => 'failed',
+                'error' => 'Gagal baca resit. Sila isi borang secara manual.',
+            ], 300);
+
+            $log->log('receipt.processing', 'fail', [
                 'supervisor_id' => $request->user()->id,
+                'job_id' => $jobId,
                 'error' => $e->getMessage(),
             ]);
-            throw $e;
         }
 
         $log->log('receipt.completed', 'success', [

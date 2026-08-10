@@ -13,9 +13,15 @@ class SyncImagesToGoogleDrive extends Command
 
     public function handle(GoogleDriveImageSyncService $syncService): int
     {
-        $dispatched = $syncService->dispatchAll();
+        $result = $syncService->sync();
 
-        $this->info("Dispatched {$dispatched} Google Drive upload job(s).");
+        $this->info(sprintf(
+            'Scanned %d image(s): uploaded %d, skipped %d, failed %d.',
+            $result->scanned,
+            $result->uploaded,
+            $result->skipped,
+            count($result->failures),
+        ));
 
         return self::SUCCESS;
     }

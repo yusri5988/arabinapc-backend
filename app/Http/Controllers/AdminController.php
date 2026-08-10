@@ -2,17 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ExportAllTransactionsExcelJob;
-use App\Jobs\ExportConsolidatedReportJob;
-use App\Jobs\ExportSupervisorExcelJob;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\ExcelExportService;
 use App\Services\SupervisorBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -302,7 +301,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function exportSupervisorExcel(User $supervisor)
+    public function exportSupervisorExcel(User $supervisor, ExcelExportService $exportService)
     {
         abort_unless($supervisor->role === 'supervisor', 404);
 
@@ -310,7 +309,26 @@ class AdminController extends Controller
 
         Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
 
-        ExportSupervisorExcelJob::dispatch($supervisor->id, $jobId);
+        try {
+            $result = $exportService->generate($supervisor->id);
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'completed',
+                'file_path' => $result['file_path'],
+                'file_name' => $result['file_name'],
+            ], 600);
+        } catch (\Throwable $exception) {
+            Log::error('Supervisor Excel export failed.', [
+                'job_id' => $jobId,
+                'supervisor_id' => $supervisor->id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'failed',
+                'error' => 'Gagal generate fail Excel. Sila cuba lagi.',
+            ], 600);
+        }
 
         return response()->json(['job_id' => $jobId]);
     }
@@ -344,13 +362,31 @@ class AdminController extends Controller
         return response()->download($filePath, $fileName)->deleteFileAfterSend(true);
     }
 
-    public function exportAllTransactions()
+    public function exportAllTransactions(ExcelExportService $exportService)
     {
         $jobId = (string) Str::uuid();
 
         Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
 
-        ExportAllTransactionsExcelJob::dispatch($jobId);
+        try {
+            $result = $exportService->generateAll();
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'completed',
+                'file_path' => $result['file_path'],
+                'file_name' => $result['file_name'],
+            ], 600);
+        } catch (\Throwable $exception) {
+            Log::error('All transactions Excel export failed.', [
+                'job_id' => $jobId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'failed',
+                'error' => 'Gagal generate fail Excel. Sila cuba lagi.',
+            ], 600);
+        }
 
         return response()->json(['job_id' => $jobId]);
     }
@@ -426,7 +462,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function exportConsolidatedReport(Request $request)
+    public function exportConsolidatedReport(Request $request, ExcelExportService $exportService)
     {
         $request->validate([
             'start_date' => 'required|date',
@@ -437,7 +473,27 @@ class AdminController extends Controller
 
         Cache::put("export_result:{$jobId}", ['status' => 'processing'], 600);
 
-        ExportConsolidatedReportJob::dispatch($jobId, $request->start_date, $request->end_date);
+        try {
+            $result = $exportService->generateConsolidated($request->start_date, $request->end_date);
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'completed',
+                'file_path' => $result['file_path'],
+                'file_name' => $result['file_name'],
+            ], 600);
+        } catch (\Throwable $exception) {
+            Log::error('Consolidated report Excel export failed.', [
+                'job_id' => $jobId,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'message' => $exception->getMessage(),
+            ]);
+
+            Cache::put("export_result:{$jobId}", [
+                'status' => 'failed',
+                'error' => 'Gagal generate consolidated report Excel. Sila cuba lagi.',
+            ], 600);
+        }
 
         return response()->json(['job_id' => $jobId]);
     }

@@ -2,15 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessReceiptJob;
 use App\Models\User;
-use App\Services\ImageCompressionService;
-use App\Services\ReceiptProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -21,8 +17,6 @@ class ProcessReceiptTest extends TestCase
     public function test_supervisor_can_upload_receipt_and_get_ai_response(): void
     {
         Storage::fake('public');
-        Queue::fake([ProcessReceiptJob::class]);
-
         Http::fake([
             'api.anthropic.com/*' => Http::response([
                 'id' => 'msg_abc123',
@@ -57,7 +51,9 @@ class ProcessReceiptTest extends TestCase
         $files = Storage::disk('public')->allFiles('receipts/A102');
         $this->assertNotEmpty($files);
 
-        Queue::assertPushed(ProcessReceiptJob::class);
+        $result = Cache::get("job_result:{$response->json('job_id')}");
+        $this->assertSame('completed', $result['status']);
+        $this->assertSame('Makan minum site', $result['data']['description']);
     }
 
     public function test_process_receipt_requires_authentication(): void
@@ -160,9 +156,6 @@ class ProcessReceiptTest extends TestCase
         $storedFiles = Storage::disk('public')->allFiles('receipts/A102');
         $this->assertNotEmpty($storedFiles);
 
-        $job = new ProcessReceiptJob($storedFiles[0], $receiptUrl, $jobId);
-        $job->handle(app(ReceiptProcessingService::class), app(ImageCompressionService::class));
-
         $result = Cache::get("job_result:{$jobId}");
         $this->assertEquals('completed', $result['status']);
         $this->assertEquals('Gagal baca resit. Sila isi borang secara manual.', $result['data']['description']);
@@ -172,8 +165,6 @@ class ProcessReceiptTest extends TestCase
     public function test_receipt_status_polling_returns_processing(): void
     {
         Storage::fake('public');
-        Queue::fake([ProcessReceiptJob::class]);
-
         $supervisor = User::factory()->supervisor()->create();
         $file = UploadedFile::fake()->image('receipt.jpg');
 
@@ -189,7 +180,7 @@ class ProcessReceiptTest extends TestCase
             ->getJson("/api/supervisor/receipt-status/{$jobId}");
 
         $statusResponse->assertStatus(200)
-            ->assertJsonPath('status', 'processing');
+            ->assertJsonPath('status', 'completed');
     }
 
     public function test_receipt_status_returns_not_found_for_invalid_job(): void

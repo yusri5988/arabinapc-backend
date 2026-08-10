@@ -2,11 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\UploadToGoogleDriveJob;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -18,8 +16,6 @@ class SyncImagesToGoogleDriveCommandTest extends TestCase
     {
         Storage::fake('public');
         Storage::fake('google');
-        Bus::fake([UploadToGoogleDriveJob::class]);
-
         Storage::disk('public')->put('receipts/SITE1/receipt.jpg', 'receipt');
         Storage::disk('public')->put('expense-items/SITE2/item.jpg', 'item');
         Storage::disk('public')->put('receipts/root-receipt.jpg', 'ignored');
@@ -39,9 +35,7 @@ class SyncImagesToGoogleDriveCommandTest extends TestCase
         $this->artisan('images:sync-google-drive')
             ->assertExitCode(0);
 
-        Bus::assertDispatched(UploadToGoogleDriveJob::class, function ($job) {
-            return $job->sourcePath === 'expense-items/SITE2/item.jpg';
-        });
+        Storage::disk('google')->assertExists('expense-items/SITE2/item.jpg');
 
         Storage::disk('public')->assertExists('receipts/SITE1/receipt.jpg');
 
