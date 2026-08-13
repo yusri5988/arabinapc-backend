@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminMediaController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\SupervisorController;
@@ -47,6 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/supervisors', [AdminController::class, 'createSupervisor']);
         Route::post('/admin/supervisors/{supervisor}/reset-password', [AdminController::class, 'resetStaffPassword']);
         Route::post('/admin/supervisors/{supervisor}/receive-back', [AdminController::class, 'receiveBack']);
+        Route::post('/admin/process-receipt', [AdminMediaController::class, 'processReceipt']);
+        Route::post('/admin/process-item-image', [AdminMediaController::class, 'processItemImage']);
+        Route::get('/admin/receipt-status/{jobId}', [AdminMediaController::class, 'receiptStatus']);
         Route::delete('/admin/cache/clear', function () {
             Cache::flush();
 

@@ -93,6 +93,8 @@ class SupervisorController extends Controller
                     'receipt_url' => $request->receipt_url,
                     'date' => $request->date,
                     'metadata' => [
+                        'source' => 'staff_expense_entry',
+                        'created_by_user_id' => $user->id,
                         'item_images' => $request->item_images ?? [],
                     ],
                 ]);

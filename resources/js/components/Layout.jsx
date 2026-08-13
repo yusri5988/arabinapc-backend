@@ -52,6 +52,7 @@ export default function Layout({ user, setUser }) {
         { to: '/admin/dashboard', label: 'Home', icon: LayoutDashboard },
         { to: '/admin/supervisors', label: 'Staff', icon: Users },
         { to: '/admin/send-to-supervisor', label: 'Send', icon: Send },
+        { to: '/admin/add-expense', label: 'Add Expense', icon: Receipt },
         { to: '/admin/transactions', label: 'History', icon: History },
     ];
 

@@ -35,6 +35,7 @@ class AdminTransactionCrudTest extends TestCase
                 'details' => 'Site Meal',
                 'description' => 'Lunch for site team',
                 'site_id' => 'A101',
+                'receipt_url' => '/storage/receipts/A101/receipt.jpg',
                 'date' => '2024-01-02',
             ])
             ->assertCreated()
@@ -213,6 +214,7 @@ class AdminTransactionCrudTest extends TestCase
                 'details' => 'Site Meal',
                 'description' => 'Lunch for site team',
                 'site_id' => 'A101',
+                'receipt_url' => '/storage/receipts/A101/receipt.jpg',
                 'date' => '2024-01-02',
             ])
             ->assertCreated()

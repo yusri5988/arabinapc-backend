@@ -7,6 +7,7 @@ import AdminOverview from './pages/admin/AdminOverview';
 import AdminSupervisors from './pages/admin/AdminSupervisors';
 import AdminTopup from './pages/admin/AdminTopup';
 import AdminTransactions from './pages/admin/AdminTransactions';
+import AdminAddExpense from './pages/admin/AdminAddExpense';
 import AdminSupervisorTransactions from './pages/admin/AdminSupervisorTransactions';
 import SupervisorOverview from './pages/supervisor/SupervisorOverview';
 import SupervisorLedger from './pages/supervisor/SupervisorLedger';
@@ -137,6 +138,7 @@ function App() {
                             <Route path="send-to-supervisor" element={<AdminTopup />} />
                             <Route path="topup" element={<Navigate to="send-to-supervisor" replace />} />
                             <Route path="transactions" element={<AdminTransactions />} />
+                            <Route path="add-expense" element={<AdminAddExpense />} />
                         </Route>
                         
                         <Route path="supervisor" element={<SupervisorGuard user={user} token={token} />}>
