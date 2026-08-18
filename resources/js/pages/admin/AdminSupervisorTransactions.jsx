@@ -11,11 +11,30 @@ const money = (value) =>
 
 const formatDate = (value) => {
     if (!value) return '-';
-    return new Date(value).toLocaleDateString('en-MY', {
+    const dateObj = typeof value === 'string' && !value.includes('T') && value.length === 10
+        ? new Date(`${value}T00:00:00`)
+        : new Date(value);
+    if (isNaN(dateObj.getTime())) return '-';
+    return dateObj.toLocaleDateString('en-MY', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
     });
+};
+
+const formatTime = (value) => {
+    if (!value) return '';
+    try {
+        const dateObj = new Date(value);
+        if (isNaN(dateObj.getTime())) return '';
+        return dateObj.toLocaleTimeString('en-MY', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        }).toUpperCase();
+    } catch {
+        return '';
+    }
 };
 
 const normalizeUrl = (value) => {
@@ -148,7 +167,10 @@ export default function AdminSupervisorTransactions() {
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 text-[15px] leading-tight truncate">{tx.description || 'No description'}</p>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
-                                                    <span>{formatDate(tx.date)}</span>
+                                                    <span>
+                                                        {formatDate(tx.date || tx.created_at)}
+                                                        {tx.created_at && ` • ${formatTime(tx.created_at)}`}
+                                                    </span>
                                                     {tx.site_id && <span className="text-slate-500">Site {tx.site_id}</span>}
                                                     {Array.isArray(tx.metadata?.item_images) && tx.metadata.item_images.length > 0 && (
                                                         <a
@@ -218,7 +240,14 @@ export default function AdminSupervisorTransactions() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-slate-500 font-medium">{formatDate(tx.date)}</td>
+                                            <td className="px-6 py-4">
+                                                <p className="text-slate-700 font-medium">{formatDate(tx.date || tx.created_at)}</p>
+                                                {tx.created_at && (
+                                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                        {formatTime(tx.created_at)}
+                                                    </p>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-slate-500 font-medium">
                                                 {tx.site_id || tx.receipt_url ? (
                                                     <div className="flex flex-col gap-1">

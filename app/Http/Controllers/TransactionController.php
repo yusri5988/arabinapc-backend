@@ -37,6 +37,7 @@ class TransactionController extends Controller
                     'receipt_url' => $transaction->receipt_url,
                     'metadata' => $transaction->metadata,
                     'date' => optional($transaction->date)->toDateString(),
+                    'created_at' => optional($transaction->created_at)->toISOString(),
                     'user' => [
                         'id' => $transaction->user?->id,
                         'name' => $transaction->user?->name,
@@ -73,6 +74,7 @@ class TransactionController extends Controller
                     'receipt_url' => $transaction->receipt_url,
                     'metadata' => $transaction->metadata,
                     'date' => optional($transaction->date)->toDateString(),
+                    'created_at' => optional($transaction->created_at)->toISOString(),
                 ];
             });
 
@@ -244,6 +246,7 @@ class TransactionController extends Controller
             'receipt_url' => $transaction->receipt_url,
             'metadata' => $transaction->metadata,
             'date' => optional($transaction->date)->toDateString(),
+            'created_at' => optional($transaction->created_at)->toISOString(),
             'user' => [
                 'id' => $transaction->user?->id,
                 'name' => $transaction->user?->name,
