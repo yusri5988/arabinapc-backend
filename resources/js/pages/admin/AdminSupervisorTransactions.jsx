@@ -37,6 +37,27 @@ const formatTime = (value) => {
     }
 };
 
+const formatDateTime = (value) => {
+    if (!value) return '';
+    try {
+        const dateObj = new Date(value);
+        if (isNaN(dateObj.getTime())) return '';
+        const d = dateObj.toLocaleDateString('en-MY', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+        const t = dateObj.toLocaleTimeString('en-MY', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        }).toUpperCase();
+        return `${d}, ${t}`;
+    } catch {
+        return '';
+    }
+};
+
 const normalizeUrl = (value) => {
     if (typeof value !== 'string' || !value) return '';
 
@@ -167,10 +188,14 @@ export default function AdminSupervisorTransactions() {
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 text-[15px] leading-tight truncate">{tx.description || 'No description'}</p>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
-                                                    <span>
+                                                    <span className="text-slate-700 font-bold">
                                                         {formatDate(tx.date || tx.created_at)}
-                                                        {tx.created_at && ` • ${formatTime(tx.created_at)}`}
                                                     </span>
+                                                    {tx.created_at && (
+                                                        <span className="text-slate-400">
+                                                            • Created: {formatDateTime(tx.created_at)}
+                                                        </span>
+                                                    )}
                                                     {tx.site_id && <span className="text-slate-500">Site {tx.site_id}</span>}
                                                     {Array.isArray(tx.metadata?.item_images) && tx.metadata.item_images.length > 0 && (
                                                         <a
@@ -241,10 +266,10 @@ export default function AdminSupervisorTransactions() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <p className="text-slate-700 font-medium">{formatDate(tx.date || tx.created_at)}</p>
+                                                <p className="text-slate-900 font-bold">{formatDate(tx.date || tx.created_at)}</p>
                                                 {tx.created_at && (
-                                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                        {formatTime(tx.created_at)}
+                                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5" title="Tarikh & masa sistem rekod dicipta">
+                                                        Created: {formatDateTime(tx.created_at)}
                                                     </p>
                                                 )}
                                             </td>

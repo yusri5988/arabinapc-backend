@@ -38,6 +38,7 @@ class SupervisorController extends Controller
                     'receipt_url' => $transaction->receipt_url,
                     'metadata' => $transaction->metadata,
                     'date' => optional($transaction->date)->toDateString(),
+                    'created_at' => optional($transaction->created_at)->toISOString(),
                 ];
             }),
         ]);

@@ -22,6 +22,40 @@ const normalizeUrl = (value) => {
     return url;
 };
 
+const formatDate = (value) => {
+    if (!value) return '-';
+    const dateObj = typeof value === 'string' && !value.includes('T') && value.length === 10
+        ? new Date(`${value}T00:00:00`)
+        : new Date(value);
+    if (isNaN(dateObj.getTime())) return '-';
+    return dateObj.toLocaleDateString('en-MY', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+};
+
+const formatDateTime = (value) => {
+    if (!value) return '';
+    try {
+        const dateObj = new Date(value);
+        if (isNaN(dateObj.getTime())) return '';
+        const d = dateObj.toLocaleDateString('en-MY', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+        const t = dateObj.toLocaleTimeString('en-MY', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        }).toUpperCase();
+        return `${d}, ${t}`;
+    } catch {
+        return '';
+    }
+};
+
 const isMoneyIn = (transaction) => transaction.type === 'topup';
 
 export default function SupervisorLedger({ user }) {
@@ -131,7 +165,8 @@ export default function SupervisorLedger({ user }) {
                                     <div className="min-w-0">
                                         <p className="text-slate-900 font-bold text-[15px] truncate leading-tight">{tx.description}</p>
                                         <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400 mt-1 flex-wrap">
-                                            <span>{new Date(tx.date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            <span className="text-slate-700 font-bold">{formatDate(tx.date || tx.created_at)}</span>
+                                            {tx.created_at && <span>• Created: {formatDateTime(tx.created_at)}</span>}
                                             {tx.payment_to && (
                                                 <>
                                                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
