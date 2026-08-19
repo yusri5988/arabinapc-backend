@@ -166,7 +166,7 @@ export default function SupervisorLedger({ user }) {
                                 onClick={() => setViewingTransaction(tx)}
                                 className="p-4 md:p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 active:bg-slate-100 cursor-pointer"
                             >
-                                <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                                <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
                                     <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
                                         isMoneyIn(tx)
                                             ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
@@ -174,8 +174,10 @@ export default function SupervisorLedger({ user }) {
                                     }`}>
                                         {isMoneyIn(tx) ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-slate-900 font-bold text-[15px] truncate leading-tight">{tx.description}</p>
+                                    <div className="min-w-0 flex-1 max-w-[200px] sm:max-w-md md:max-w-lg lg:max-w-2xl">
+                                        <p className="text-slate-900 font-bold text-[15px] truncate leading-tight" title={tx.description}>
+                                            {tx.description}
+                                        </p>
                                         <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400 mt-1 flex-wrap">
                                             <span className="text-slate-700 font-bold">{formatDate(tx.date || tx.created_at)}</span>
                                             {tx.created_at && <span>• Created: {formatDateTime(tx.created_at)}</span>}

@@ -190,7 +190,7 @@ export default function AdminSupervisorTransactions() {
                                     className="p-4 cursor-pointer hover:bg-slate-50/80 active:bg-slate-100 transition-colors"
                                 >
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-start gap-3 min-w-0">
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
                                             <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
                                                 isMoneyIn(tx)
                                                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
@@ -198,8 +198,10 @@ export default function AdminSupervisorTransactions() {
                                             }`}>
                                                 {isMoneyIn(tx) ? <ArrowDownLeft size={20} strokeWidth={2.5} /> : <ArrowUpRight size={20} strokeWidth={2.5} />}
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-slate-900 text-[15px] leading-tight truncate">{tx.description || 'No description'}</p>
+                                            <div className="min-w-0 flex-1 max-w-[200px] sm:max-w-sm">
+                                                <p className="font-bold text-slate-900 text-[15px] leading-tight truncate" title={tx.description || 'No description'}>
+                                                    {tx.description || 'No description'}
+                                                </p>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-400">
                                                     <span className="text-slate-700 font-bold">
                                                         {formatDate(tx.date || tx.created_at)}
@@ -267,7 +269,7 @@ export default function AdminSupervisorTransactions() {
                                             onClick={() => setViewingTransaction(tx)}
                                             className="hover:bg-slate-50/70 transition-colors cursor-pointer"
                                         >
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 max-w-[280px] lg:max-w-[400px]">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 flex items-center justify-center rounded-2xl shrink-0 border ${
                                                         isMoneyIn(tx)
@@ -276,9 +278,11 @@ export default function AdminSupervisorTransactions() {
                                                     }`}>
                                                         {isMoneyIn(tx) ? <ArrowDownLeft size={18} strokeWidth={2.5} /> : <ArrowUpRight size={18} strokeWidth={2.5} />}
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-slate-900 truncate">{tx.description || 'No description'}</p>
-                                                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-bold text-slate-900 truncate" title={tx.description || 'No description'}>
+                                                            {tx.description || 'No description'}
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
                                                             {transactionLabel(tx)}
                                                         </p>
                                                     </div>
