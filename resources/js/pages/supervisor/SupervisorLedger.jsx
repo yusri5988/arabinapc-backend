@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '../../lib/axios';
-import { ArrowDownLeft, ArrowUpRight, History, Camera, ReceiptText, RefreshCw, FileText } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, History, Camera, ReceiptText, RefreshCw, FileText, Loader2, ChevronDown } from 'lucide-react';
 import ExpenseModal from '../../components/ExpenseModal';
 import TransactionDetailModal from '../../components/TransactionDetailModal';
 
@@ -62,16 +62,41 @@ const isMoneyIn = (transaction) => transaction.type === 'topup';
 export default function SupervisorLedger({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewingTransaction, setViewingTransaction] = useState(null);
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['supervisorLedger'],
-        queryFn: async () => {
-            const res = await api.get('/supervisor/ledger');
+        queryFn: async ({ pageParam = 1 }) => {
+            const res = await api.get('/supervisor/ledger', {
+                params: {
+                    page: pageParam,
+                    per_page: 20,
+                }
+            });
             return res.data;
+        },
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => {
+            if (lastPage?.pagination?.has_more) {
+                return (lastPage.pagination.current_page || 1) + 1;
+            }
+            return undefined;
         },
         retry: 1,
     });
 
-    const transactions = data?.transactions ?? [];
+    const balance = data?.pages?.[0]?.balance;
+    const department = data?.pages?.[0]?.department;
+    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     return (
         <div className="space-y-6">
@@ -92,8 +117,8 @@ export default function SupervisorLedger({ user }) {
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)} 
                 onRefresh={refetch}
-                maxAmount={data?.balance}
-                department={data?.department || user?.department || 'Site'}
+                maxAmount={balance}
+                department={department || user?.department || 'Site'}
             />
 
             <div className="rounded-[2rem] border border-slate-200/60 bg-white p-6 shadow-sm relative overflow-hidden">
@@ -248,6 +273,32 @@ export default function SupervisorLedger({ user }) {
                                 </div>
                             </div>
                         ))
+                    )}
+
+                    {hasNextPage && (
+                        <div className="p-4 md:p-6 text-center border-t border-slate-100 bg-slate-50/40">
+                            <button
+                                type="button"
+                                onClick={() => fetchNextPage()}
+                                disabled={isFetchingNextPage}
+                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-6 py-3 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50 active:scale-[0.99] cursor-pointer"
+                            >
+                                {isFetchingNextPage ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        Loading more...
+                                    </>
+                                ) : (
+                                    <>
+                                        Load More Transactions
+                                        <ChevronDown size={16} />
+                                        <span className="text-xs text-emerald-100 bg-emerald-700/60 px-2 py-0.5 rounded-full font-medium ml-1">
+                                            {transactions.length} of {totalTransactionsCount}
+                                        </span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AdminReceiveBackPettyCashTest extends TestCase
@@ -84,6 +85,7 @@ class AdminReceiveBackPettyCashTest extends TestCase
 
     public function test_receive_back_is_money_out_in_history_and_not_counted_as_expense_in_consolidated_report(): void
     {
+        Carbon::setTestNow('2026-07-03');
         $admin = User::factory()->admin()->create();
         $supervisor = User::factory()->supervisor()->create(['department' => 'Site']);
 
@@ -129,6 +131,8 @@ class AdminReceiveBackPettyCashTest extends TestCase
             ->assertJsonPath('summary.balance', 0)
             ->assertJsonPath('by_staff.0.total_returned_to_admin', 400)
             ->assertJsonPath('by_department.0.total_returned_to_admin', 400);
+
+        Carbon::setTestNow();
     }
 
     public function test_admin_cannot_edit_return_to_admin_transaction(): void

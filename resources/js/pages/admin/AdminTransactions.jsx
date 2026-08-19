@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios';
 import AdminTransactionModal from '../../components/AdminTransactionModal';
 import TransactionDetailModal from '../../components/TransactionDetailModal';
 import { normalizeSupervisors } from '../../lib/normalize';
-import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2, Loader2, FileDown, Calendar, FileSpreadsheet } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2, Loader2, FileDown, Calendar, FileSpreadsheet, ChevronDown } from 'lucide-react';
 
 const money = (value) =>
     Number(value ?? 0).toLocaleString('en-MY', {
@@ -150,19 +150,41 @@ export default function AdminTransactions() {
 
     const supervisors = normalizeSupervisors(supervisorsData) || [];
 
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['adminTransactions', selectedStaffId],
-        queryFn: async () => {
+        queryFn: async ({ pageParam = 1 }) => {
             const res = await api.get('/admin/transactions', {
-                params: { user_id: selectedStaffId || undefined }
+                params: {
+                    user_id: selectedStaffId || undefined,
+                    page: pageParam,
+                    per_page: 20,
+                }
             });
             return res.data;
+        },
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => {
+            if (lastPage?.pagination?.has_more) {
+                return (lastPage.pagination.current_page || 1) + 1;
+            }
+            return undefined;
         },
         retry: 1,
     });
 
-    const transactions = data?.transactions ?? [];
-    const totalAmount = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const totalAmount = data?.pages?.[0]?.total_amount ?? transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     const openEditModal = (transaction) => {
         setEditingTransaction(transaction);
@@ -658,6 +680,32 @@ export default function AdminTransactions() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {hasNextPage && (
+                            <div className="p-4 md:p-6 text-center border-t border-slate-100 bg-slate-50/40">
+                                <button
+                                    type="button"
+                                    onClick={() => fetchNextPage()}
+                                    disabled={isFetchingNextPage}
+                                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-6 py-3 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50 active:scale-[0.99] cursor-pointer"
+                                >
+                                    {isFetchingNextPage ? (
+                                        <>
+                                            <Loader2 size={16} className="animate-spin" />
+                                            Loading more...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Load More Transactions
+                                            <ChevronDown size={16} />
+                                            <span className="text-xs text-emerald-100 bg-emerald-700/60 px-2 py-0.5 rounded-full font-medium ml-1">
+                                                {transactions.length} of {totalTransactionsCount}
+                                            </span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

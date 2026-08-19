@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../lib/axios';
 import TransactionDetailModal from '../../components/TransactionDetailModal';
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, Wallet, ReceiptText } from 'lucide-react';
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, Wallet, ReceiptText, Loader2, ChevronDown } from 'lucide-react';
 
 const money = (value) =>
     Number(value ?? 0).toLocaleString('en-MY', {
@@ -90,18 +90,41 @@ export default function AdminSupervisorTransactions() {
     const { supervisorId } = useParams();
     const [viewingTransaction, setViewingTransaction] = useState(null);
 
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['adminSupervisorTransactions', supervisorId],
-        queryFn: async () => {
-            const res = await api.get(`/admin/supervisors/${supervisorId}/transactions`);
+        queryFn: async ({ pageParam = 1 }) => {
+            const res = await api.get(`/admin/supervisors/${supervisorId}/transactions`, {
+                params: {
+                    page: pageParam,
+                    per_page: 20,
+                }
+            });
             return res.data;
+        },
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => {
+            if (lastPage?.pagination?.has_more) {
+                return (lastPage.pagination.current_page || 1) + 1;
+            }
+            return undefined;
         },
         enabled: Boolean(supervisorId),
         retry: 1,
     });
 
-    const supervisor = data?.supervisor;
-    const transactions = data?.transactions ?? [];
+    const supervisor = data?.pages?.[0]?.supervisor;
+    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     return (
         <div className="space-y-6">
@@ -337,6 +360,32 @@ export default function AdminSupervisorTransactions() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {hasNextPage && (
+                            <div className="p-4 md:p-6 text-center border-t border-slate-100 bg-slate-50/40">
+                                <button
+                                    type="button"
+                                    onClick={() => fetchNextPage()}
+                                    disabled={isFetchingNextPage}
+                                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-6 py-3 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50 active:scale-[0.99] cursor-pointer"
+                                >
+                                    {isFetchingNextPage ? (
+                                        <>
+                                            <Loader2 size={16} className="animate-spin" />
+                                            Loading more...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Load More Transactions
+                                            <ChevronDown size={16} />
+                                            <span className="text-xs text-emerald-100 bg-emerald-700/60 px-2 py-0.5 rounded-full font-medium ml-1">
+                                                {transactions.length} of {totalTransactionsCount}
+                                            </span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

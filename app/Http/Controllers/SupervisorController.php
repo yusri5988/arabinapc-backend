@@ -18,29 +18,43 @@ class SupervisorController extends Controller
 {
     public function ledger(Request $request, SupervisorBalanceService $balanceService)
     {
-        $transactions = Transaction::where('user_id', $request->user()->id)
+        $baseQuery = Transaction::where('user_id', $request->user()->id);
+        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+
+        $paginator = (clone $baseQuery)
             ->orderBy('date', 'desc')
-            ->get();
+            ->orderBy('id', 'desc')
+            ->paginate($perPage);
+
+        $transactions = collect($paginator->items())->map(function (Transaction $transaction) {
+            return [
+                'id' => $transaction->id,
+                'type' => $transaction->type,
+                'amount' => $transaction->amount,
+                'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
+                'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
+                'payment_to' => $transaction->payment_to,
+                'details' => $transaction->details,
+                'description' => $transaction->description,
+                'site_id' => $transaction->site_id,
+                'receipt_url' => $transaction->receipt_url,
+                'metadata' => $transaction->metadata,
+                'date' => optional($transaction->date)->toDateString(),
+                'created_at' => optional($transaction->created_at)->toISOString(),
+            ];
+        });
 
         return response()->json([
             'balance' => $balanceService->calculate($request->user()->id),
             'department' => $request->user()->department ?? 'Site',
-            'transactions' => $transactions->map(function (Transaction $transaction) {
-                return [
-                    'id' => $transaction->id,
-                    'type' => $transaction->type,
-                    'amount' => $transaction->amount,
-                    'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
-                    'payment_to' => $transaction->payment_to,
-                    'description' => $transaction->description,
-                    'site_id' => $transaction->site_id,
-                    'receipt_url' => $transaction->receipt_url,
-                    'metadata' => $transaction->metadata,
-                    'date' => optional($transaction->date)->toDateString(),
-                    'created_at' => optional($transaction->created_at)->toISOString(),
-                ];
-            }),
+            'transactions' => $transactions,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+            ],
         ]);
     }
 

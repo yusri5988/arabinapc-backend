@@ -14,71 +14,89 @@ class TransactionController extends Controller
 {
     public function index(Request $request)
     {
-        $transactions = Transaction::with('user')
-            ->whereHas('user', function ($query) {
+        $baseQuery = Transaction::whereHas('user', function ($query) {
                 $query->where('role', 'supervisor');
             })
             ->when($request->filled('user_id'), function ($query) use ($request) {
                 $query->where('user_id', $request->input('user_id'));
-            })
+            });
+
+        $totalAmount = (float) (clone $baseQuery)->sum('amount');
+        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+
+        $paginator = (clone $baseQuery)
+            ->with('user')
             ->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
-            ->get()
-            ->map(function (Transaction $transaction) {
-                return [
-                    'id' => $transaction->id,
-                    'type' => $transaction->type,
-                    'amount' => $transaction->amount,
-                    'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
-                    'payment_to' => $transaction->payment_to,
-                    'details' => $transaction->details,
-                    'description' => $transaction->description,
-                    'site_id' => $transaction->site_id,
-                    'receipt_url' => $transaction->receipt_url,
-                    'metadata' => $transaction->metadata,
-                    'date' => optional($transaction->date)->toDateString(),
-                    'created_at' => optional($transaction->created_at)->toISOString(),
-                    'user' => [
-                        'id' => $transaction->user?->id,
-                        'name' => $transaction->user?->name,
-                        'role' => $transaction->user?->role,
-                        'department' => $transaction->user?->department,
-                    ],
-                ];
-            });
+            ->paginate($perPage);
+
+        $transactions = collect($paginator->items())->map(function (Transaction $transaction) {
+            return [
+                'id' => $transaction->id,
+                'type' => $transaction->type,
+                'amount' => $transaction->amount,
+                'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
+                'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
+                'payment_to' => $transaction->payment_to,
+                'details' => $transaction->details,
+                'description' => $transaction->description,
+                'site_id' => $transaction->site_id,
+                'receipt_url' => $transaction->receipt_url,
+                'metadata' => $transaction->metadata,
+                'date' => optional($transaction->date)->toDateString(),
+                'created_at' => optional($transaction->created_at)->toISOString(),
+                'user' => [
+                    'id' => $transaction->user?->id,
+                    'name' => $transaction->user?->name,
+                    'role' => $transaction->user?->role,
+                    'department' => $transaction->user?->department,
+                ],
+            ];
+        });
 
         return response()->json([
             'transactions' => $transactions,
+            'total_amount' => $totalAmount,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+            ],
         ]);
     }
 
-    public function supervisorHistory(User $supervisor, SupervisorBalanceService $balanceService)
+    public function supervisorHistory(Request $request, User $supervisor, SupervisorBalanceService $balanceService)
     {
         abort_unless($supervisor->role === 'supervisor', 404);
 
-        $transactions = Transaction::with('user')
-            ->where('user_id', $supervisor->id)
+        $baseQuery = Transaction::where('user_id', $supervisor->id);
+        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+
+        $paginator = (clone $baseQuery)
+            ->with('user')
             ->orderBy('date', 'desc')
             ->orderBy('id', 'desc')
-            ->get()
-            ->map(function (Transaction $transaction) {
-                return [
-                    'id' => $transaction->id,
-                    'type' => $transaction->type,
-                    'amount' => $transaction->amount,
-                    'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
-                    'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
-                    'payment_to' => $transaction->payment_to,
-                    'details' => $transaction->details,
-                    'description' => $transaction->description,
-                    'site_id' => $transaction->site_id,
-                    'receipt_url' => $transaction->receipt_url,
-                    'metadata' => $transaction->metadata,
-                    'date' => optional($transaction->date)->toDateString(),
-                    'created_at' => optional($transaction->created_at)->toISOString(),
-                ];
-            });
+            ->paginate($perPage);
+
+        $transactions = collect($paginator->items())->map(function (Transaction $transaction) {
+            return [
+                'id' => $transaction->id,
+                'type' => $transaction->type,
+                'amount' => $transaction->amount,
+                'money_in' => $transaction->type === 'topup' ? $transaction->amount : 0,
+                'money_out' => in_array($transaction->type, ['expense', 'return_to_admin'], true) ? $transaction->amount : 0,
+                'payment_to' => $transaction->payment_to,
+                'details' => $transaction->details,
+                'description' => $transaction->description,
+                'site_id' => $transaction->site_id,
+                'receipt_url' => $transaction->receipt_url,
+                'metadata' => $transaction->metadata,
+                'date' => optional($transaction->date)->toDateString(),
+                'created_at' => optional($transaction->created_at)->toISOString(),
+            ];
+        });
 
         return response()->json([
             'supervisor' => [
@@ -89,6 +107,13 @@ class TransactionController extends Controller
                 'balance' => $balanceService->calculate($supervisor->id),
             ],
             'transactions' => $transactions,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'has_more' => $paginator->hasMorePages(),
+            ],
         ]);
     }
 
