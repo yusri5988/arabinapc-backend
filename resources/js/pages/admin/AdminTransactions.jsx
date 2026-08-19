@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios';
 import AdminTransactionModal from '../../components/AdminTransactionModal';
+import TransactionDetailModal from '../../components/TransactionDetailModal';
 import { normalizeSupervisors } from '../../lib/normalize';
 import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2, Loader2, FileDown, Calendar, FileSpreadsheet } from 'lucide-react';
 
@@ -114,6 +115,7 @@ const transactionLabel = (transaction) => {
 export default function AdminTransactions() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
+    const [viewingTransaction, setViewingTransaction] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     const [selectedStaffId, setSelectedStaffId] = useState('');
     const [activeTab, setActiveTab] = useState('transactions');
@@ -350,6 +352,15 @@ export default function AdminTransactions() {
                 transaction={editingTransaction}
             />
 
+            <TransactionDetailModal
+                isOpen={Boolean(viewingTransaction)}
+                transaction={viewingTransaction}
+                onClose={() => setViewingTransaction(null)}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                canEdit={true}
+            />
+
             <div className="flex items-center gap-2 border-b border-slate-200">
                 <button
                     onClick={() => setActiveTab('transactions')}
@@ -453,7 +464,11 @@ export default function AdminTransactions() {
                     <>
                         <div className="md:hidden divide-y divide-slate-100/80">
                             {transactions.map((tx) => (
-                                <div key={tx.id} className="p-4">
+                                <div
+                                    key={tx.id}
+                                    onClick={() => setViewingTransaction(tx)}
+                                    className="p-4 cursor-pointer hover:bg-slate-50/80 active:bg-slate-100 transition-colors"
+                                >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-3 min-w-0">
                                             <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
@@ -486,6 +501,7 @@ export default function AdminTransactions() {
                                                     {Array.isArray(tx.metadata?.item_images) && tx.metadata.item_images.length > 0 && (
                                                         <a
                                                             href={normalizeUrl(tx.metadata.item_images[0]?.url)}
+                                                            onClick={(e) => e.stopPropagation()}
                                                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sky-600 underline decoration-sky-200 underline-offset-2 hover:bg-sky-50 hover:text-sky-700"
                                                             target="_blank"
                                                             rel="noreferrer"
@@ -497,6 +513,7 @@ export default function AdminTransactions() {
                                                     {tx.receipt_url && (
                                                         <a
                                                             href={normalizeUrl(tx.receipt_url)}
+                                                            onClick={(e) => e.stopPropagation()}
                                                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-emerald-600 underline decoration-emerald-200 underline-offset-2 hover:bg-emerald-50 hover:text-emerald-700"
                                                             target="_blank"
                                                             rel="noreferrer"
@@ -520,7 +537,7 @@ export default function AdminTransactions() {
                                     {tx.type === 'return_to_admin' ? (
                                         <span className="text-[10px] text-slate-400 font-semibold">System record</span>
                                     ) : (
-                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                        <div className="mt-4 grid grid-cols-2 gap-2" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 type="button"
                                                 onClick={() => openEditModal(tx)}
@@ -557,7 +574,11 @@ export default function AdminTransactions() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/80">
                                     {transactions.map((tx) => (
-                                        <tr key={tx.id} className="group hover:bg-slate-50/50 transition-colors">
+                                        <tr
+                                            key={tx.id}
+                                            onClick={() => setViewingTransaction(tx)}
+                                            className="group hover:bg-slate-50/70 transition-colors cursor-pointer"
+                                        >
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 flex items-center justify-center rounded-2xl shrink-0 border ${
@@ -598,7 +619,10 @@ export default function AdminTransactions() {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="sticky right-0 z-10 bg-white px-4 py-4 shadow-[-8px_0_16px_-16px_rgba(15,23,42,0.35)] group-hover:bg-slate-50/95">
+                                            <td
+                                                className="sticky right-0 z-10 bg-white px-4 py-4 shadow-[-8px_0_16px_-16px_rgba(15,23,42,0.35)] group-hover:bg-slate-50/95"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
                                                 {tx.type === 'return_to_admin' ? (
                                                     <div className="flex justify-center">
                                                         <span className="text-[10px] text-slate-400 font-semibold">System record</span>

@@ -118,10 +118,13 @@ class AdminController extends Controller
                     Rule::exists('users', 'id')->where('role', 'supervisor'),
                 ],
                 'amount' => 'required|numeric|min:0.01',
+                'remark' => 'nullable|string|max:500',
+                'details' => 'nullable|string|max:500',
             ]);
             $log->log('topup.validation', 'success', [
                 'supervisor_id' => $request->supervisor_id,
                 'amount' => $request->amount,
+                'remark' => $request->remark ?? $request->details,
             ]);
         } catch (\Exception $e) {
             $log->log('topup.validation', 'fail', [
@@ -160,23 +163,32 @@ class AdminController extends Controller
                     'supervisor_name' => $supervisor->name,
                 ]);
 
+                $remark = $request->filled('remark') ? trim((string) $request->input('remark')) : ($request->filled('details') ? trim((string) $request->input('details')) : null);
+                $description = 'Duit diterima daripada Admin: '.$admin->name;
+                if ($remark) {
+                    $description .= ' ('.$remark.')';
+                }
+
                 // 3b: Create transaction record
                 Transaction::create([
                     'user_id' => $supervisor->id,
                     'type' => 'topup',
                     'amount' => $request->amount,
                     'payment_to' => 'Supervisor Topup',
-                    'description' => 'Duit diterima daripada Admin: '.$admin->name,
+                    'details' => $remark,
+                    'description' => $description,
                     'date' => now(),
                     'metadata' => [
                         'source' => 'admin_send_to_supervisor',
                         'sent_by_user_id' => $admin->id,
+                        'remark' => $remark,
                     ],
                 ]);
                 $log->log('topup.create_transaction', 'success', [
                     'supervisor_id' => $supervisor->id,
                     'amount' => $request->amount,
                     'type' => 'topup',
+                    'remark' => $remark,
                 ]);
 
                 // 3c: Recalculate balance

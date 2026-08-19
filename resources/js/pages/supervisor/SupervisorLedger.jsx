@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/axios';
 import { ArrowDownLeft, ArrowUpRight, History, Camera, ReceiptText, RefreshCw, FileText } from 'lucide-react';
 import ExpenseModal from '../../components/ExpenseModal';
+import TransactionDetailModal from '../../components/TransactionDetailModal';
 
 const normalizeUrl = (value) => {
     if (typeof value !== 'string' || !value) return '';
@@ -60,6 +61,7 @@ const isMoneyIn = (transaction) => transaction.type === 'topup';
 
 export default function SupervisorLedger({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [viewingTransaction, setViewingTransaction] = useState(null);
     const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
         queryKey: ['supervisorLedger'],
         queryFn: async () => {
@@ -73,6 +75,12 @@ export default function SupervisorLedger({ user }) {
 
     return (
         <div className="space-y-6">
+            <TransactionDetailModal
+                isOpen={Boolean(viewingTransaction)}
+                transaction={viewingTransaction ? { ...viewingTransaction, user: viewingTransaction.user || user } : null}
+                onClose={() => setViewingTransaction(null)}
+            />
+
             <div className="flex justify-between items-end">
                 <div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Ledger</h2>
@@ -153,7 +161,11 @@ export default function SupervisorLedger({ user }) {
                         </div>
                     ) : (
                         transactions.map((tx) => (
-                            <div key={tx.id} className="p-4 md:p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 active:bg-slate-100">
+                            <div
+                                key={tx.id}
+                                onClick={() => setViewingTransaction(tx)}
+                                className="p-4 md:p-5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 active:bg-slate-100 cursor-pointer"
+                            >
                                 <div className="flex items-center gap-3 md:gap-4 min-w-0">
                                     <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
                                         isMoneyIn(tx)
@@ -192,6 +204,7 @@ export default function SupervisorLedger({ user }) {
                                                         href={normalizeUrl(tx.metadata.item_images[0]?.url)}
                                                         onClick={(event) => {
                                                             event.preventDefault();
+                                                            event.stopPropagation();
                                                             const url = normalizeUrl(tx.metadata.item_images[0]?.url);
                                                             if (url) window.location.assign(url);
                                                         }}
@@ -208,6 +221,7 @@ export default function SupervisorLedger({ user }) {
                                                         href={normalizeUrl(tx.receipt_url)}
                                                         onClick={(event) => {
                                                             event.preventDefault();
+                                                            event.stopPropagation();
                                                             const url = normalizeUrl(tx.receipt_url);
                                                             if (url) window.location.assign(url);
                                                         }}

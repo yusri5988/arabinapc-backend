@@ -46,6 +46,40 @@ class AdminSendToSupervisorTest extends TestCase
         $this->assertEquals($admin->id, $transaction->metadata['sent_by_user_id']);
     }
 
+    public function test_admin_can_send_cash_to_supervisor_with_optional_remark(): void
+    {
+        $admin = User::factory()->admin()->create(['name' => 'Admin Arabina']);
+        $supervisor = User::factory()->supervisor()->withBalance(50)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 50,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson('/api/admin/topup', [
+                'supervisor_id' => $supervisor->id,
+                'amount' => 200.00,
+                'remark' => 'Topup tapak projek B',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Duit berjaya dihantar kepada supervisor.');
+
+        $this->assertEquals(250.00, (float) $supervisor->fresh()->balance);
+
+        $transaction = Transaction::where('user_id', $supervisor->id)->latest('id')->first();
+        $this->assertNotNull($transaction);
+        $this->assertEquals('topup', $transaction->type);
+        $this->assertEquals(200.00, (float) $transaction->amount);
+        $this->assertEquals('Topup tapak projek B', $transaction->details);
+        $this->assertEquals('Duit diterima daripada Admin: Admin Arabina (Topup tapak projek B)', $transaction->description);
+        $this->assertEquals('Topup tapak projek B', $transaction->metadata['remark']);
+    }
+
     public function test_admin_cannot_send_cash_to_non_supervisor_user(): void
     {
         $admin = User::factory()->admin()->create();

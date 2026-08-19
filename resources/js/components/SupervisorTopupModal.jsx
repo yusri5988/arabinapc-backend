@@ -4,7 +4,8 @@ import api from '../lib/axios';
 import { logAction } from '../lib/logger';
 
 const initialForm = {
-    amount: '500.00'
+    amount: '500.00',
+    remark: ''
 };
 
 export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, supervisor }) {
@@ -45,12 +46,14 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
             supervisor_id: supervisor.id,
             supervisor_name: supervisor.name,
             amount: form.amount,
+            remark: form.remark,
         });
 
         logAction('topup.confirmation_shown', 'success', {
             supervisor_id: supervisor.id,
             supervisor_name: supervisor.name,
             amount: form.amount,
+            remark: form.remark,
         });
 
         setConfirming(true);
@@ -61,6 +64,7 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
             supervisor_id: supervisor.id,
             supervisor_name: supervisor.name,
             amount: form.amount,
+            remark: form.remark,
         });
         setConfirming(false);
     };
@@ -73,22 +77,26 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
             supervisor_id: supervisor.id,
             supervisor_name: supervisor.name,
             amount: form.amount,
+            remark: form.remark,
         });
 
         logAction('topup.api_request_sent', 'success', {
             supervisor_id: supervisor.id,
             amount: form.amount,
+            remark: form.remark,
         });
 
         try {
             await api.post('/admin/topup', {
                 supervisor_id: supervisor.id,
-                amount: form.amount
+                amount: form.amount,
+                remark: form.remark?.trim() || null,
             });
 
             logAction('topup.api_response_received', 'success', {
                 supervisor_id: supervisor.id,
                 amount: form.amount,
+                remark: form.remark,
             });
 
             onSuccess();
@@ -101,6 +109,7 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
             logAction('topup.api_response_received', 'fail', {
                 supervisor_id: supervisor.id,
                 amount: form.amount,
+                remark: form.remark,
                 error: apiMessage || err.message,
                 status: err.response?.status,
             });
@@ -160,6 +169,13 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
                             <p className="mt-1 text-3xl font-black text-emerald-700">RM {form.amount}</p>
                         </div>
 
+                        {form.remark && form.remark.trim() && (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Remark / Catatan</p>
+                                <p className="mt-1 text-sm font-medium text-slate-700 break-words">{form.remark.trim()}</p>
+                            </div>
+                        )}
+
                         <div className="flex gap-3">
                             <button
                                 type="button"
@@ -207,9 +223,22 @@ export default function SupervisorTopupModal({ isOpen, onClose, onSuccess, super
                                 type="number"
                                 inputMode="decimal"
                                 value={form.amount}
-                                onChange={(event) => setForm({ amount: event.target.value })}
+                                onChange={(event) => setForm({ ...form, amount: event.target.value })}
                                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                                 placeholder="500.00"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-400">
+                                Remark / Catatan <span className="font-normal text-slate-400 lowercase">(optional)</span>
+                            </label>
+                            <textarea
+                                rows="2"
+                                value={form.remark}
+                                onChange={(event) => setForm({ ...form, remark: event.target.value })}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all placeholder:text-slate-400 resize-none"
+                                placeholder="Contoh: Topup mingguan tapak bina / Duit kecemasan..."
                             />
                         </div>
 

@@ -31,6 +31,7 @@ class ExcelExportService
             'Date',
             'Payment To',
             'Details',
+            'Remark',
             'Money Out',
             'Money In',
             'Initial balance',
@@ -44,7 +45,7 @@ class ExcelExportService
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:L1');
+        $headerStyle = $sheet->getStyle('A1:M1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -54,10 +55,11 @@ class ExcelExportService
         if ($transactions->isEmpty()) {
             $sheet->setCellValue("A{$row}", now()->format('d/m/Y'));
             $sheet->setCellValue("B{$row}", 'Opening Balance');
-            $sheet->setCellValueExplicit("F{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("G{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
         } else {
             foreach ($transactions as $transaction) {
                 $amount = (float) $transaction->amount;
+                $remark = (string) (data_get($transaction->metadata, 'remark') ?: ($transaction->type === 'topup' ? ($transaction->details ?? '') : (data_get($transaction->metadata, 'notes') ?? '')));
 
                 if ($transaction->type === 'topup') {
                     $moneyIn = $amount;
@@ -94,21 +96,22 @@ class ExcelExportService
                 $sheet->setCellValueExplicit("A{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("B{$row}", (string) $paymentTo, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("C{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("D{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("E{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("F{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("G{$row}", $inflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("H{$row}", $outflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("I{$row}", (string) $displayDetails, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("J{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("K{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("L{$row}", (string) $docLink, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("D{$row}", (string) $remark, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("E{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("F{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("G{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("H{$row}", $inflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("I{$row}", $outflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("J{$row}", (string) $displayDetails, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("K{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("L{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("M{$row}", (string) $docLink, DataType::TYPE_STRING);
 
                 $row++;
             }
         }
 
-        foreach (range('A', 'L') as $column) {
+        foreach (range('A', 'M') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -145,6 +148,7 @@ class ExcelExportService
             'Date',
             'Payment To',
             'Details',
+            'Remark',
             'Money Out',
             'Money In',
             'Initial balance',
@@ -158,7 +162,7 @@ class ExcelExportService
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:M1');
+        $headerStyle = $sheet->getStyle('A1:N1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -167,6 +171,7 @@ class ExcelExportService
 
         foreach ($transactions as $transaction) {
             $amount = (float) $transaction->amount;
+            $remark = (string) (data_get($transaction->metadata, 'remark') ?: ($transaction->type === 'topup' ? ($transaction->details ?? '') : (data_get($transaction->metadata, 'notes') ?? '')));
 
             if ($transaction->type === 'topup') {
                 $moneyIn = $amount;
@@ -206,25 +211,26 @@ class ExcelExportService
             $sheet->setCellValueExplicit("B{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("C{$row}", (string) $paymentTo, DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("D{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("E{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("F{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("G{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("H{$row}", $inflowType, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("I{$row}", $outflowType, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("J{$row}", (string) $displayDetails, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("K{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("L{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("M{$row}", (string) $docLink, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("E{$row}", (string) $remark, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("F{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("G{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("H{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("I{$row}", $inflowType, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("J{$row}", $outflowType, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("K{$row}", (string) $displayDetails, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("L{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("M{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("N{$row}", (string) $docLink, DataType::TYPE_STRING);
 
             $row++;
         }
 
         if ($transactions->isEmpty()) {
             $sheet->setCellValue("A2", 'No transactions');
-            $sheet->setCellValueExplicit("G2", number_format(0, 2, '.', ''), DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("H2", number_format(0, 2, '.', ''), DataType::TYPE_NUMERIC);
         }
 
-        foreach (range('A', 'M') as $column) {
+        foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -388,24 +394,26 @@ class ExcelExportService
         $sheet4 = $spreadsheet->createSheet();
         $sheet4->setTitle('Top Expenses');
         $sheet4->fromArray([
-            'Date', 'Staff', 'Payment To', 'Details', 'Amount (RM)', 'Site ID',
+            'Date', 'Staff', 'Payment To', 'Details', 'Remark', 'Amount (RM)', 'Site ID',
         ], null, 'A1');
-        $headerStyle4 = $sheet4->getStyle('A1:F1');
+        $headerStyle4 = $sheet4->getStyle('A1:G1');
         $headerStyle4->getFont()->setBold(true);
         $headerStyle4->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
         $expenseRow = 2;
         foreach ($topExpenses as $tx) {
+            $remark = (string) (data_get($tx->metadata, 'remark') ?: (data_get($tx->metadata, 'notes') ?? ''));
             $sheet4->setCellValueExplicit("A{$expenseRow}", optional($tx->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
             $sheet4->setCellValueExplicit("B{$expenseRow}", $tx->user?->name ?? 'Unknown', DataType::TYPE_STRING);
             $sheet4->setCellValueExplicit("C{$expenseRow}", (string) ($tx->payment_to ?? '-'), DataType::TYPE_STRING);
             $sheet4->setCellValueExplicit("D{$expenseRow}", (string) ($tx->details ?: $tx->description ?? ''), DataType::TYPE_STRING);
-            $sheet4->setCellValueExplicit("E{$expenseRow}", number_format((float) $tx->amount, 2), DataType::TYPE_STRING);
-            $sheet4->setCellValueExplicit("F{$expenseRow}", (string) ($tx->site_id ?? ''), DataType::TYPE_STRING);
+            $sheet4->setCellValueExplicit("E{$expenseRow}", (string) $remark, DataType::TYPE_STRING);
+            $sheet4->setCellValueExplicit("F{$expenseRow}", number_format((float) $tx->amount, 2), DataType::TYPE_STRING);
+            $sheet4->setCellValueExplicit("G{$expenseRow}", (string) ($tx->site_id ?? ''), DataType::TYPE_STRING);
             $expenseRow++;
         }
 
-        foreach (range('A', 'F') as $column) {
+        foreach (range('A', 'G') as $column) {
             $sheet4->getColumnDimension($column)->setAutoSize(true);
         }
 

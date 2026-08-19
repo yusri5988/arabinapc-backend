@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../lib/axios';
+import TransactionDetailModal from '../../components/TransactionDetailModal';
 import { ArrowLeft, ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, Wallet, ReceiptText } from 'lucide-react';
 
 const money = (value) =>
@@ -86,6 +88,7 @@ const transactionLabel = (transaction) => {
 
 export default function AdminSupervisorTransactions() {
     const { supervisorId } = useParams();
+    const [viewingTransaction, setViewingTransaction] = useState(null);
 
     const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
         queryKey: ['adminSupervisorTransactions', supervisorId],
@@ -102,6 +105,12 @@ export default function AdminSupervisorTransactions() {
 
     return (
         <div className="space-y-6">
+            <TransactionDetailModal
+                isOpen={Boolean(viewingTransaction)}
+                transaction={viewingTransaction ? { ...viewingTransaction, user: viewingTransaction.user || supervisor } : null}
+                onClose={() => setViewingTransaction(null)}
+            />
+
             <div className="flex items-end justify-between gap-4">
                 <div className="space-y-2">
 
@@ -175,7 +184,11 @@ export default function AdminSupervisorTransactions() {
                     <>
                         <div className="md:hidden divide-y divide-slate-100/80">
                             {transactions.map((tx) => (
-                                <div key={tx.id} className="p-4">
+                                <div
+                                    key={tx.id}
+                                    onClick={() => setViewingTransaction(tx)}
+                                    className="p-4 cursor-pointer hover:bg-slate-50/80 active:bg-slate-100 transition-colors"
+                                >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-3 min-w-0">
                                             <div className={`w-11 h-11 flex items-center justify-center rounded-2xl shrink-0 shadow-sm border ${
@@ -200,6 +213,7 @@ export default function AdminSupervisorTransactions() {
                                                     {Array.isArray(tx.metadata?.item_images) && tx.metadata.item_images.length > 0 && (
                                                         <a
                                                             href={normalizeUrl(tx.metadata.item_images[0]?.url)}
+                                                            onClick={(e) => e.stopPropagation()}
                                                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sky-600 underline decoration-sky-200 underline-offset-2 hover:bg-sky-50 hover:text-sky-700"
                                                             target="_blank"
                                                             rel="noreferrer"
@@ -211,6 +225,7 @@ export default function AdminSupervisorTransactions() {
                                                     {tx.receipt_url && (
                                                         <a
                                                             href={normalizeUrl(tx.receipt_url)}
+                                                            onClick={(e) => e.stopPropagation()}
                                                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-emerald-600 underline decoration-emerald-200 underline-offset-2 hover:bg-emerald-50 hover:text-emerald-700"
                                                             target="_blank"
                                                             rel="noreferrer"
@@ -247,7 +262,11 @@ export default function AdminSupervisorTransactions() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/80">
                                     {transactions.map((tx) => (
-                                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <tr
+                                            key={tx.id}
+                                            onClick={() => setViewingTransaction(tx)}
+                                            className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                                        >
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 flex items-center justify-center rounded-2xl shrink-0 border ${
@@ -275,7 +294,7 @@ export default function AdminSupervisorTransactions() {
                                             </td>
                                             <td className="px-6 py-4 text-slate-500 font-medium">
                                                 {tx.site_id || tx.receipt_url ? (
-                                                    <div className="flex flex-col gap-1">
+                                                    <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
                                                         {tx.site_id && <span>Site {tx.site_id}</span>}
                                                         {Array.isArray(tx.metadata?.item_images) && tx.metadata.item_images.length > 0 && (
                                                             <a
