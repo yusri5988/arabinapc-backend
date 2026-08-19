@@ -78,7 +78,7 @@ export default function SupervisorLedger({ user }) {
             const res = await api.get('/supervisor/ledger', {
                 params: {
                     page: pageParam,
-                    per_page: 20,
+                    per_page: 10,
                 }
             });
             return res.data;

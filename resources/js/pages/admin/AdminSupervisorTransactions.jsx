@@ -106,7 +106,7 @@ export default function AdminSupervisorTransactions() {
             const res = await api.get(`/admin/supervisors/${supervisorId}/transactions`, {
                 params: {
                     page: pageParam,
-                    per_page: 20,
+                    per_page: 10,
                 }
             });
             return res.data;

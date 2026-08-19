@@ -167,7 +167,7 @@ export default function AdminTransactions() {
                 params: {
                     user_id: selectedStaffId || undefined,
                     page: pageParam,
-                    per_page: 20,
+                    per_page: 10,
                 }
             });
             return res.data;

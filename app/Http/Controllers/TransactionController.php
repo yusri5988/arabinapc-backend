@@ -22,7 +22,7 @@ class TransactionController extends Controller
             });
 
         $totalAmount = (float) (clone $baseQuery)->sum('amount');
-        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
 
         $paginator = (clone $baseQuery)
             ->with('user')
@@ -72,7 +72,7 @@ class TransactionController extends Controller
         abort_unless($supervisor->role === 'supervisor', 404);
 
         $baseQuery = Transaction::where('user_id', $supervisor->id);
-        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
 
         $paginator = (clone $baseQuery)
             ->with('user')

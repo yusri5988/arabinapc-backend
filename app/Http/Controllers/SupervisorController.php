@@ -19,7 +19,7 @@ class SupervisorController extends Controller
     public function ledger(Request $request, SupervisorBalanceService $balanceService)
     {
         $baseQuery = Transaction::where('user_id', $request->user()->id);
-        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
+        $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
 
         $paginator = (clone $baseQuery)
             ->orderBy('date', 'desc')
