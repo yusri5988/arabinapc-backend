@@ -204,4 +204,47 @@ class ExpenseTest extends TestCase
             'receipt_url' => null,
         ]);
     }
+
+    public function test_supervisor_can_create_expense_with_multiple_receipt_urls(): void
+    {
+        $supervisor = User::factory()->supervisor()->withBalance(500)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2024-01-01',
+        ]);
+
+        $receiptUrls = [
+            '/storage/receipts/A102/receipt1.jpg',
+            '/storage/receipts/A102/receipt2.pdf',
+        ];
+
+        $response = $this->actingAs($supervisor)
+            ->postJson('/api/supervisor/expense', [
+                'amount' => 80.00,
+                'payment_to' => 'Kedai Hardware',
+                'details' => 'Site Meal',
+                'description' => 'Beli barang dan invois',
+                'site_id' => 'A102',
+                'date' => '2024-03-15',
+                'receipt_urls' => $receiptUrls,
+            ]);
+
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 80.00,
+            'receipt_url' => '/storage/receipts/A102/receipt1.jpg',
+        ]);
+
+        $transaction = Transaction::where('type', 'expense')->first();
+        $this->assertEquals($receiptUrls, $transaction->metadata['receipt_urls']);
+    }
 }
+
+

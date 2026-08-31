@@ -131,6 +131,8 @@ class TransactionController extends Controller
             'description' => ['required_if:type,expense', 'nullable', 'string'],
             'site_id' => ['required_if:type,expense', 'nullable', 'string', 'max:255'],
             'receipt_url' => ['required_if:type,expense', 'nullable', 'string'],
+            'receipt_urls' => ['nullable', 'array'],
+            'receipt_urls.*' => ['string'],
             'item_images' => ['nullable', 'array', 'max:4'],
             'item_images.*.url' => ['required_with:item_images', 'string'],
             'item_images.*.name' => ['required_with:item_images', 'string'],
@@ -141,6 +143,12 @@ class TransactionController extends Controller
             $admin = $request->user();
             $supervisor = User::whereKey($validated['supervisor_id'])->lockForUpdate()->firstOrFail();
 
+            $receiptUrls = $validated['receipt_urls'] ?? [];
+            if (empty($receiptUrls) && ! empty($validated['receipt_url'])) {
+                $receiptUrls = [$validated['receipt_url']];
+            }
+            $primaryReceiptUrl = $validated['receipt_url'] ?? ($receiptUrls[0] ?? null);
+
             $transaction = Transaction::create([
                 'user_id' => $supervisor->id,
                 'type' => $validated['type'],
@@ -149,12 +157,13 @@ class TransactionController extends Controller
                 'details' => $validated['details'] ?? null,
                 'description' => $validated['description'] ?? ($validated['type'] === 'topup' ? 'Duit diterima daripada Admin: '.$admin->name : null),
                 'site_id' => $validated['site_id'] ?? null,
-                'receipt_url' => $validated['receipt_url'] ?? null,
+                'receipt_url' => $primaryReceiptUrl,
                 'date' => $validated['date'],
                 'metadata' => [
                     'source' => 'admin_transaction_crud',
                     'created_by_user_id' => $admin->id,
                     'item_images' => $validated['item_images'] ?? [],
+                    'receipt_urls' => $receiptUrls,
                 ],
             ]);
 
@@ -187,6 +196,8 @@ class TransactionController extends Controller
             'description' => [$transaction->type === 'expense' ? 'required' : 'nullable', 'nullable', 'string'],
             'site_id' => [$transaction->type === 'expense' ? 'required' : 'nullable', 'nullable', 'string', 'max:255'],
             'receipt_url' => ['nullable', 'string'],
+            'receipt_urls' => ['nullable', 'array'],
+            'receipt_urls.*' => ['string'],
             'item_images' => ['nullable', 'array', 'max:4'],
             'item_images.*.url' => ['required_with:item_images', 'string'],
             'item_images.*.name' => ['required_with:item_images', 'string'],
@@ -206,15 +217,31 @@ class TransactionController extends Controller
                 'date' => $validated['date'],
             ]);
 
+            $metadata = $transaction->metadata ?? [];
+            if (is_string($metadata)) {
+                $metadata = json_decode($metadata, true) ?? [];
+            }
+
+            if (array_key_exists('receipt_urls', $validated)) {
+                $metadata['receipt_urls'] = $validated['receipt_urls'];
+                if (! empty($validated['receipt_urls']) && ! array_key_exists('receipt_url', $validated)) {
+                    $transaction->receipt_url = $validated['receipt_urls'][0] ?? $transaction->receipt_url;
+                }
+            }
+
             if (array_key_exists('receipt_url', $validated)) {
                 $transaction->receipt_url = $validated['receipt_url'];
+                if (! array_key_exists('receipt_urls', $validated) && ! empty($validated['receipt_url'])) {
+                    $metadata['receipt_urls'] = [$validated['receipt_url']];
+                }
             }
 
             if (array_key_exists('item_images', $validated)) {
-                $metadata = $transaction->metadata ?? [];
                 $metadata['item_images'] = $validated['item_images'];
-                $transaction->metadata = $metadata;
             }
+
+            $transaction->metadata = $metadata;
+            $transaction->save();
 
             $balanceService->recalculate($supervisor);
 

@@ -94,12 +94,100 @@ class ProcessReceiptTest extends TestCase
             ->assertJsonValidationErrors('receipt');
     }
 
-    public function test_process_receipt_requires_image_file(): void
+    public function test_supervisor_can_upload_pdf_receipt_and_get_ai_response(): void
+    {
+        Storage::fake('public');
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => '{"date": "2024-03-15", "amount": 120.50, "payment_to": "Hardware Store", "description": "Barang elektrik"}',
+                    ],
+                ],
+                'stop_reason' => 'end_turn',
+            ], 200),
+        ]);
+
+        $supervisor = User::factory()->supervisor()->withBalance(500)->create();
+
+        $file = UploadedFile::fake()->create('invoice.pdf', 200, 'application/pdf');
+
+        $response = $this->actingAs($supervisor)
+            ->postJson('/api/supervisor/process-receipt', [
+                'receipt' => $file,
+                'site_id' => 'A102',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['job_id', 'receipt_url', 'receipt_urls']);
+
+        $this->assertNotEmpty($response->json('job_id'));
+        $this->assertNotEmpty($response->json('receipt_url'));
+        $this->assertCount(1, $response->json('receipt_urls'));
+
+        $files = Storage::disk('public')->allFiles('receipts/A102');
+        $this->assertNotEmpty($files);
+
+        $result = Cache::get("job_result:{$response->json('job_id')}");
+        $this->assertSame('completed', $result['status']);
+        $this->assertEquals(120.50, $result['data']['amount']);
+        $this->assertSame('Hardware Store', $result['data']['payment_to']);
+    }
+
+    public function test_supervisor_can_upload_multiple_receipts_including_images_and_pdf(): void
+    {
+        Storage::fake('public');
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'id' => 'msg_abc123',
+                'type' => 'message',
+                'role' => 'assistant',
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => '{"date": "2024-03-15", "amount": 350.00, "payment_to": "Multiple Vendors", "description": "Gabungan resit dan invois"}',
+                    ],
+                ],
+                'stop_reason' => 'end_turn',
+            ], 200),
+        ]);
+
+        $supervisor = User::factory()->supervisor()->withBalance(500)->create();
+
+        $file1 = UploadedFile::fake()->image('receipt1.jpg');
+        $file2 = UploadedFile::fake()->image('receipt2.png');
+        $file3 = UploadedFile::fake()->create('invoice.pdf', 200, 'application/pdf');
+
+        $response = $this->actingAs($supervisor)
+            ->postJson('/api/supervisor/process-receipt', [
+                'receipts' => [$file1, $file2, $file3],
+                'site_id' => 'A102',
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['job_id', 'receipt_url', 'receipt_urls']);
+
+        $this->assertNotEmpty($response->json('job_id'));
+        $this->assertCount(3, $response->json('receipt_urls'));
+
+        $files = Storage::disk('public')->allFiles('receipts/A102');
+        $this->assertCount(3, $files);
+
+        $result = Cache::get("job_result:{$response->json('job_id')}");
+        $this->assertSame('completed', $result['status']);
+        $this->assertEquals(350.00, $result['data']['amount']);
+    }
+
+    public function test_process_receipt_rejects_unsupported_file_types(): void
     {
         Storage::fake('public');
         $supervisor = User::factory()->supervisor()->create();
 
-        $file = UploadedFile::fake()->create('document.pdf', 100);
+        $file = UploadedFile::fake()->create('document.docx', 100, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [

@@ -69,6 +69,8 @@ class SupervisorController extends Controller
                 'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
                 'date' => 'required|date',
                 'receipt_url' => 'nullable|string',
+                'receipt_urls' => 'nullable|array',
+                'receipt_urls.*' => 'string',
                 'item_images' => 'nullable|array|max:4',
                 'item_images.*.url' => 'required_with:item_images|string',
                 'item_images.*.name' => 'required_with:item_images|string',
@@ -97,6 +99,12 @@ class SupervisorController extends Controller
                     'supervisor_id' => $user->id,
                 ]);
 
+                $receiptUrls = $request->input('receipt_urls', []);
+                if (empty($receiptUrls) && $request->filled('receipt_url')) {
+                    $receiptUrls = [$request->input('receipt_url')];
+                }
+                $primaryReceiptUrl = $request->input('receipt_url') ?? ($receiptUrls[0] ?? null);
+
                 Transaction::create([
                     'user_id' => $user->id,
                     'type' => 'expense',
@@ -105,12 +113,13 @@ class SupervisorController extends Controller
                     'details' => $request->details,
                     'description' => $request->description,
                     'site_id' => $request->site_id,
-                    'receipt_url' => $request->receipt_url,
+                    'receipt_url' => $primaryReceiptUrl,
                     'date' => $request->date,
                     'metadata' => [
                         'source' => 'staff_expense_entry',
                         'created_by_user_id' => $user->id,
                         'item_images' => $request->item_images ?? [],
+                        'receipt_urls' => $receiptUrls,
                     ],
                 ]);
                 $log->log('expense.create_transaction', 'success', [
@@ -218,9 +227,18 @@ class SupervisorController extends Controller
     {
         try {
             $request->validate([
-                'receipt' => 'required|image|max:15360',
+                'receipt' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif,pdf|max:15360',
+                'receipts' => 'nullable|array',
+                'receipts.*' => 'file|mimes:jpeg,png,jpg,webp,gif,pdf|max:15360',
                 'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
             ]);
+
+            if (! $request->hasFile('receipt') && ! $request->hasFile('receipts')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'receipt' => ['Fail resit diperlukan.'],
+                ]);
+            }
+
             $log->log('receipt.validation', 'success', [
                 'supervisor_id' => $request->user()->id,
                 'site_id' => $request->input('site_id'),
@@ -234,14 +252,27 @@ class SupervisorController extends Controller
         }
 
         try {
-            $stored = $receiptProcessingService->storeReceipt(
-                $request->file('receipt'),
+            $files = [];
+            if ($request->hasFile('receipts')) {
+                $receiptsInput = $request->file('receipts');
+                $files = is_array($receiptsInput) ? $receiptsInput : [$receiptsInput];
+            } elseif ($request->hasFile('receipt')) {
+                $receiptInput = $request->file('receipt');
+                $files = is_array($receiptInput) ? $receiptInput : [$receiptInput];
+            }
+
+            $storedItems = $receiptProcessingService->storeReceipts(
+                $files,
                 $request->input('site_id')
             );
+
+            $receiptUrls = array_values(array_filter(array_column($storedItems, 'receiptUrl')));
+            $primaryReceiptUrl = $receiptUrls[0] ?? '';
+
             $log->log('receipt.store', 'success', [
                 'supervisor_id' => $request->user()->id,
                 'site_id' => $request->input('site_id'),
-                'stored_path' => $stored['storedPath'],
+                'count' => count($storedItems),
             ]);
         } catch (\Exception $e) {
             $log->log('receipt.store', 'fail', [
@@ -257,17 +288,18 @@ class SupervisorController extends Controller
 
             Cache::put("job_result:{$jobId}", ['status' => 'processing'], 300);
 
-            $dto = $receiptProcessingService->processStored(
-                $stored['storedPath'],
-                $stored['receiptUrl'],
-            );
+            $dto = $receiptProcessingService->processStored($storedItems);
 
             Cache::put("job_result:{$jobId}", [
                 'status' => 'completed',
                 'data' => $dto->toArray(),
             ], 300);
 
-            $compressionService->compress($stored['storedPath']);
+            foreach ($storedItems as $storedItem) {
+                if (! ($storedItem['isPdf'] ?? false)) {
+                    $compressionService->compress($storedItem['storedPath']);
+                }
+            }
 
             $log->log('receipt.processed', 'success', [
                 'supervisor_id' => $request->user()->id,
@@ -294,7 +326,8 @@ class SupervisorController extends Controller
 
         return response()->json([
             'job_id' => $jobId,
-            'receipt_url' => $stored['receiptUrl'],
+            'receipt_url' => $primaryReceiptUrl,
+            'receipt_urls' => $receiptUrls,
         ]);
     }
 

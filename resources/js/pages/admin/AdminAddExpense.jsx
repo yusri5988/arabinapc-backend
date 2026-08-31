@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Camera, Loader2, Upload, ImagePlus, Trash2, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { Camera, Loader2, Upload, ImagePlus, Trash2, Image as ImageIcon, ChevronDown, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
 import api from '../../lib/axios';
 import { normalizeSupervisors } from '../../lib/normalize';
 import { getDetailsOptions } from '../../lib/expenseDetails';
 
 const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
 const MAX_IMAGE_SIZE_LABEL = '15 MB';
+
+const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
 
 export default function AdminAddExpense() {
     const cameraInputRef = useRef(null);
@@ -25,6 +33,9 @@ export default function AdminAddExpense() {
     const [itemImageError, setItemImageError] = useState('');
     const [receiptFileName, setReceiptFileName] = useState('');
     const [receiptUrl, setReceiptUrl] = useState('');
+    const [receiptUrls, setReceiptUrls] = useState([]);
+    const [stagedReceipts, setStagedReceipts] = useState([]);
+    const [scannedSuccess, setScannedSuccess] = useState(false);
     const [itemImages, setItemImages] = useState([]);
     const [detailsOther, setDetailsOther] = useState('');
     const [selectedStaff, setSelectedStaff] = useState(null);
@@ -88,67 +99,116 @@ export default function AdminAddExpense() {
     useEffect(() => {
         if (!form.supervisor_id || !form.site_id) {
             setReceiptUrl('');
+            setReceiptUrls([]);
             setReceiptFileName('');
+            stagedReceipts.forEach((item) => {
+                if (item.preview) URL.revokeObjectURL(item.preview);
+            });
+            setStagedReceipts([]);
+            setScannedSuccess(false);
             setItemImages([]);
         }
     }, [form.supervisor_id, form.site_id]);
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handleSelectReceiptFiles = (e) => {
+        const files = Array.from(e.target.files ?? []);
+        if (!files.length) return;
 
         const siteId = form.site_id.trim();
 
-        if (file.size > MAX_IMAGE_SIZE_BYTES) {
-            const message = `Saiz imej tidak boleh melebihi ${MAX_IMAGE_SIZE_LABEL}.`;
-            setOcrError(message);
-            setReceiptFileName('');
-            setProcessing(false);
+        if (!form.supervisor_id) {
+            alert('Please select a staff member before selecting receipt files.');
+            setOcrError('Please select a staff member before selecting receipt files.');
             e.target.value = '';
             return;
         }
 
         if (!siteId) {
-            alert('Sila masukkan Site ID terlebih dahulu sebelum memuat naik resit.');
-            setOcrError('Sila masukkan Site ID terlebih dahulu sebelum memuat naik resit.');
-            setReceiptFileName('');
+            alert('Please enter the Site ID before selecting receipt files.');
+            setOcrError('Please enter the Site ID before selecting receipt files.');
             e.target.value = '';
             return;
         }
 
         if (!/^[A-Za-z0-9_-]+$/.test(siteId)) {
-            const message = 'Site ID hanya boleh mengandungi huruf, nombor, underscore (_) dan dash (-).';
+            const message = 'Site ID can only contain letters, numbers, underscores (_), and dashes (-).';
             alert(message);
             setOcrError(message);
-            setReceiptFileName('');
             e.target.value = '';
             return;
         }
 
-        if (!form.supervisor_id) {
-            alert('Sila pilih staff terlebih dahulu sebelum memuat naik resit.');
-            setOcrError('Sila pilih staff terlebih dahulu sebelum memuat naik resit.');
-            setReceiptFileName('');
+        const oversizedFiles = files.filter((file) => file.size > MAX_IMAGE_SIZE_BYTES);
+        if (oversizedFiles.length > 0) {
+            const message = `File size cannot exceed ${MAX_IMAGE_SIZE_LABEL}: ${oversizedFiles.map((f) => f.name).join(', ')}`;
+            setOcrError(message);
             e.target.value = '';
+            return;
+        }
+
+        setOcrError('');
+        const newItems = files.map((file) => {
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            return {
+                id: Math.random().toString(36).substring(2, 9),
+                file,
+                name: file.name,
+                size: file.size,
+                isPdf,
+                preview: isPdf ? null : URL.createObjectURL(file),
+            };
+        });
+
+        setStagedReceipts((prev) => [...prev, ...newItems]);
+        setScannedSuccess(false);
+        e.target.value = '';
+    };
+
+    const removeStagedReceipt = (id) => {
+        setStagedReceipts((prev) => {
+            const item = prev.find((i) => i.id === id);
+            if (item?.preview) {
+                URL.revokeObjectURL(item.preview);
+            }
+            return prev.filter((i) => i.id !== id);
+        });
+        setScannedSuccess(false);
+    };
+
+    const handleScanReceipts = async () => {
+        if (stagedReceipts.length === 0) {
+            alert('Please select at least 1 receipt file or PDF first.');
+            return;
+        }
+
+        const siteId = form.site_id.trim();
+        if (!siteId || !form.supervisor_id) {
+            alert('Please select a staff member and enter the Site ID first.');
             return;
         }
 
         stopPolling();
         setProcessing(true);
         setOcrError('');
-        setReceiptFileName(file.name);
+
         const formData = new FormData();
-        formData.append('receipt', file);
+        stagedReceipts.forEach((item) => {
+            formData.append('receipts[]', item.file);
+        });
         formData.append('site_id', siteId);
         formData.append('supervisor_id', form.supervisor_id);
+
+        const names = stagedReceipts.map((i) => i.name).join(', ');
+        setReceiptFileName(names);
 
         try {
             const res = await api.post('/admin/process-receipt', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            const { job_id, receipt_url } = res.data;
+            const { job_id, receipt_url, receipt_urls } = res.data;
             setReceiptUrl(receipt_url || '');
+            setReceiptUrls(receipt_urls || (receipt_url ? [receipt_url] : []));
 
             pollIntervalRef.current = setInterval(async () => {
                 try {
@@ -164,16 +224,19 @@ export default function AdminAddExpense() {
                             description: data?.description || currentForm.description,
                             date: data?.date || currentForm.date,
                         }));
+                        if (data?.receipt_url) setReceiptUrl(data.receipt_url);
+                        if (data?.receipt_urls) setReceiptUrls(data.receipt_urls);
+                        setScannedSuccess(true);
                         setProcessing(false);
                     } else if (status === 'failed') {
                         stopPolling();
-                        setOcrError('Receipt image saved. AI failed to read, please fill the form manually.');
+                        setOcrError('Receipt uploaded, but AI could not read the details. Please fill the form manually.');
                         setProcessing(false);
                     }
                 } catch (pollErr) {
                     if (pollErr.response?.status === 404) {
                         stopPolling();
-                        setOcrError('Receipt image saved. AI processing status not found. Please fill the form manually.');
+                        setOcrError('Receipt saved. AI processing status not found. Please fill the form manually.');
                         setProcessing(false);
                     }
                 }
@@ -181,18 +244,15 @@ export default function AdminAddExpense() {
 
             pollTimeoutRef.current = setTimeout(() => {
                 stopPolling();
-                setOcrError('AI masih memproses resit. Sila isi borang secara manual atau cuba lagi.');
+                setOcrError('AI is still processing the receipt. Please fill the form manually or try again.');
                 setProcessing(false);
             }, 60000);
 
         } catch (err) {
             const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Unknown error';
             setOcrError(`Upload failed: ${message}`);
-            setReceiptFileName('');
             setProcessing(false);
             console.error('AI Processing Error:', err);
-        } finally {
-            e.target.value = '';
         }
     };
 
@@ -204,7 +264,7 @@ export default function AdminAddExpense() {
 
         const oversizedFiles = files.filter((file) => file.size > MAX_IMAGE_SIZE_BYTES);
         if (oversizedFiles.length > 0) {
-            const message = `Saiz imej tidak boleh melebihi ${MAX_IMAGE_SIZE_LABEL}.`;
+            const message = `Image size cannot exceed ${MAX_IMAGE_SIZE_LABEL}.`;
             setItemImageError(message);
             setItemImageProcessing(false);
             e.target.value = '';
@@ -212,14 +272,14 @@ export default function AdminAddExpense() {
         }
 
         if (!siteId) {
-            alert('Sila masukkan Site ID terlebih dahulu sebelum memuat naik gambar barang.');
-            setItemImageError('Sila masukkan Site ID terlebih dahulu sebelum memuat naik gambar barang.');
+            alert('Please enter the Site ID before uploading item photos.');
+            setItemImageError('Please enter the Site ID before uploading item photos.');
             e.target.value = '';
             return;
         }
 
         if (!/^[A-Za-z0-9_-]+$/.test(siteId)) {
-            const message = 'Site ID hanya boleh mengandungi huruf, nombor, underscore (_) dan dash (-).';
+            const message = 'Site ID can only contain letters, numbers, underscores (_), and dashes (-).';
             alert(message);
             setItemImageError(message);
             e.target.value = '';
@@ -227,8 +287,8 @@ export default function AdminAddExpense() {
         }
 
         if (!form.supervisor_id) {
-            alert('Sila pilih staff terlebih dahulu sebelum memuat naik gambar barang.');
-            setItemImageError('Sila pilih staff terlebih dahulu sebelum memuat naik gambar barang.');
+            alert('Please select a staff member before uploading item photos.');
+            setItemImageError('Please select a staff member before uploading item photos.');
             e.target.value = '';
             return;
         }
@@ -237,7 +297,7 @@ export default function AdminAddExpense() {
         const remainingSlots = Math.max(0, 4 - currentCount);
 
         if (remainingSlots === 0) {
-            setItemImageError('Maximum 4 gambar sahaja dibenarkan.');
+            setItemImageError('Maximum 4 photos allowed.');
             e.target.value = '';
             return;
         }
@@ -290,29 +350,29 @@ export default function AdminAddExpense() {
         e.preventDefault();
 
         if (!form.supervisor_id) {
-            toast.error('Sila pilih staff terlebih dahulu.');
+            toast.error('Please select a staff member first.');
             return;
         }
 
         if (!receiptUrl) {
-            toast.error('Sila muat naik resit terlebih dahulu.');
+            toast.error('Please upload receipts first.');
             return;
         }
 
         const detailsValue = form.details === 'Others' ? detailsOther.trim() : form.details;
 
         if (!detailsValue) {
-            toast.error('Sila pilih details.');
+            toast.error('Please select details.');
             return;
         }
 
         if (!form.description.trim()) {
-            toast.error('Sila isi description.');
+            toast.error('Please fill in the description.');
             return;
         }
 
         if (!form.site_id.trim()) {
-            toast.error('Sila isi Site ID.');
+            toast.error('Please enter the Site ID.');
             return;
         }
 
@@ -327,11 +387,12 @@ export default function AdminAddExpense() {
                 description: form.description.trim(),
                 site_id: form.site_id.trim(),
                 receipt_url: receiptUrl,
+                receipt_urls: receiptUrls,
                 date: form.date,
                 item_images: itemImages,
             });
 
-            toast.success('Expense berjaya direkodkan untuk staff.');
+            toast.success('Expense successfully recorded for staff member.');
             setForm({
                 supervisor_id: '',
                 amount: '',
@@ -342,6 +403,7 @@ export default function AdminAddExpense() {
                 date: new Date().toISOString().split('T')[0],
             });
             setReceiptUrl('');
+            setReceiptUrls([]);
             setReceiptFileName('');
             setItemImages([]);
             setDetailsOther('');
@@ -533,55 +595,133 @@ export default function AdminAddExpense() {
                             type="file"
                             accept="image/*"
                             capture="environment"
-                            onChange={handleFileUpload}
+                            multiple
+                            onChange={handleSelectReceiptFiles}
                             className="hidden"
                         />
                         <input
                             ref={uploadInputRef}
                             type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
+                            accept="image/*,application/pdf"
+                            multiple
+                            onChange={handleSelectReceiptFiles}
                             className="hidden"
                         />
                         <div className={`p-6 md:p-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 transition-all ${
                             processing ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'
                         }`}>
                             {processing ? (
-                                <>
-                                    <Loader2 className="text-emerald-600 h-10 w-10 animate-spin" />
-                                    <p className="text-emerald-600 font-bold text-sm">Claude AI is reading the receipt...</p>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="p-4 bg-emerald-50 rounded-full text-emerald-600">
-                                        <Camera size={32} />
-                                    </div>
-                                    <p className="text-slate-600 font-bold text-center text-sm md:text-base">
-                                        Upload receipt image<br />
-                                        <span className="text-xs text-slate-400">AI will auto-fill the form (maksimum 15 MB)</span>
+                                 <>
+                                     <Loader2 className="text-emerald-600 h-10 w-10 animate-spin" />
+                                     <p className="text-emerald-600 font-bold text-sm">
+                                         Claude AI is reading {stagedReceipts.length > 0 ? `${stagedReceipts.length} receipt/document(s)` : 'receipt'}...
+                                     </p>
+                                     <p className="text-xs text-slate-400">Extracting details and calculating grand total...</p>
+                                 </>
+                             ) : (
+                                 <>
+                                     <div className="p-4 bg-emerald-50 rounded-full text-emerald-600">
+                                         <Camera size={32} />
+                                     </div>
+                                     <p className="text-slate-600 font-bold text-center text-sm md:text-base">
+                                         Select or Capture Receipt / PDF<br />
+                                         <span className="text-xs text-slate-400">Files will be listed below before being scanned by AI (maximum 15 MB)</span>
+                                     </p>
+                                     <div className="grid grid-cols-2 gap-3 w-full mt-2">
+                                         <button
+                                             type="button"
+                                             onClick={() => cameraInputRef.current?.click()}
+                                             className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-3 py-4 text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
+                                         >
+                                             <Camera size={20} strokeWidth={2.5} />
+                                             <span className="text-xs font-black uppercase tracking-wider">Take Photo</span>
+                                         </button>
+                                         <button
+                                             type="button"
+                                             onClick={() => uploadInputRef.current?.click()}
+                                             className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-4 text-slate-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98]"
+                                         >
+                                             <Upload size={20} strokeWidth={2.5} />
+                                             <span className="text-xs font-black uppercase tracking-wider">Upload Files</span>
+                                         </button>
+                                     </div>
+                                 </>
+                             )}
+                         </div>
+                     </div>
+
+                     {/* Staged Receipt Files List & Confirm Scan Button */}
+                     {stagedReceipts.length > 0 && (
+                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 text-sm text-slate-700 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="font-bold text-slate-900">Selected Receipts ({stagedReceipts.length})</p>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Review file list before clicking the AI scan button.
                                     </p>
-                                    <div className="grid grid-cols-2 gap-3 w-full mt-2">
+                                </div>
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                                    {stagedReceipts.length} {stagedReceipts.length === 1 ? 'file' : 'files'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2">
+                                {stagedReceipts.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white p-2.5 shadow-sm">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {item.isPdf ? (
+                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 border border-rose-100 font-bold text-xs">
+                                                    PDF
+                                                </div>
+                                            ) : item.preview ? (
+                                                <img
+                                                    src={item.preview}
+                                                    alt={item.name}
+                                                    className="h-10 w-10 shrink-0 rounded-lg object-cover border border-slate-200"
+                                                />
+                                            ) : (
+                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                                                    <FileText size={18} />
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="truncate font-semibold text-slate-800 text-xs md:text-sm">{item.name}</p>
+                                                <p className="text-[11px] text-slate-400">{formatFileSize(item.size)}</p>
+                                            </div>
+                                        </div>
                                         <button
                                             type="button"
-                                            onClick={() => cameraInputRef.current?.click()}
-                                            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-3 py-4 text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
+                                            disabled={processing}
+                                            onClick={() => removeStagedReceipt(item.id)}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 shrink-0"
                                         >
-                                            <Camera size={20} strokeWidth={2.5} />
-                                            <span className="text-xs font-black uppercase tracking-wider">Take Photo</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => uploadInputRef.current?.click()}
-                                            className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-4 text-slate-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98]"
-                                        >
-                                            <Upload size={20} strokeWidth={2.5} />
-                                            <span className="text-xs font-black uppercase tracking-wider">Upload Image</span>
+                                            <Trash2 size={13} />
+                                            Remove
                                         </button>
                                     </div>
-                                </>
-                            )}
+                                ))}
+                            </div>
+
+                            <button
+                                type="button"
+                                disabled={processing || stagedReceipts.length === 0}
+                                onClick={handleScanReceipts}
+                                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white py-3 px-4 font-bold text-sm shadow-md shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {processing ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        <span>Reading Receipts...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles size={18} />
+                                        <span>Confirm & Scan with AI ({stagedReceipts.length} {stagedReceipts.length === 1 ? 'file' : 'files'})</span>
+                                    </>
+                                )}
+                            </button>
                         </div>
-                    </div>
+                    )}
 
                     {ocrError && (
                         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
@@ -590,11 +730,23 @@ export default function AdminAddExpense() {
                         </div>
                     )}
 
-                    {receiptUrl && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                            <p className="font-bold">Receipt image attached</p>
-                            <p className="mt-0.5 text-xs font-medium text-emerald-600">
-                                {receiptFileName || 'Receipt image'} will be saved with this expense.
+                    {scannedSuccess && receiptUrl && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 flex items-center gap-3">
+                            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+                            <div>
+                                <p className="font-bold">Receipts Scanned Successfully by AI</p>
+                                <p className="text-xs text-emerald-600">
+                                    Form details below have been auto-filled. Please review before saving.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {!scannedSuccess && receiptUrl && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                            <p className="font-bold">Receipt Attached</p>
+                            <p className="mt-0.5 text-xs font-medium text-slate-500">
+                                {receiptFileName || 'Receipt'} will be saved with this expense.
                             </p>
                         </div>
                     )}

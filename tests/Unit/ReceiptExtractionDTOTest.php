@@ -58,6 +58,7 @@ class ReceiptExtractionDTOTest extends TestCase
             description: 'Beli barang dapur',
             paymentTo: 'Pasar Mini Mubarak',
             receiptUrl: '/storage/receipts/test.jpg',
+            receiptUrls: ['/storage/receipts/test.jpg', '/storage/receipts/test2.jpg'],
         );
 
         $array = $dto->toArray();
@@ -68,6 +69,7 @@ class ReceiptExtractionDTOTest extends TestCase
             'description' => 'Beli barang dapur',
             'payment_to' => 'Pasar Mini Mubarak',
             'receipt_url' => '/storage/receipts/test.jpg',
+            'receipt_urls' => ['/storage/receipts/test.jpg', '/storage/receipts/test2.jpg'],
             'error' => null,
         ], $array);
     }
