@@ -31,11 +31,11 @@ export default function Layout({ user, setUser }) {
     const isActive = (path) => location.pathname === path;
 
     const navLinkClass = (path, accent = 'emerald') =>
-        `flex flex-col items-center justify-center gap-1.5 py-2 px-4 rounded-2xl transition-all duration-300 ${
+        `flex flex-col items-center justify-center gap-1 py-1.5 px-1 sm:px-3 rounded-2xl transition-all duration-200 flex-1 min-w-0 ${
             isActive(path)
                 ? accent === 'red'
-                    ? 'text-red-600 scale-110'
-                    : 'text-emerald-600 scale-110'
+                    ? 'text-red-600 font-bold'
+                    : 'text-emerald-600 font-bold'
                 : 'text-slate-400 hover:text-slate-600'
         }`;
 
@@ -221,15 +221,15 @@ export default function Layout({ user, setUser }) {
             </main>
 
             {/* Bottom Navigation */}
-            <div className="fixed bottom-6 left-6 right-6 z-40 pointer-events-none flex justify-center md:hidden">
-                <nav className="pointer-events-auto bg-white/90 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.8)] rounded-3xl px-2 py-2 flex items-center justify-around w-full max-w-md">
+            <div className="fixed bottom-3 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-6 z-40 pointer-events-none flex justify-center md:hidden">
+                <nav className="pointer-events-auto bg-white/95 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.12),inset_0_1px_1px_rgba(255,255,255,0.8)] rounded-3xl px-1.5 py-1.5 sm:px-2 sm:py-2 flex items-center justify-around w-full max-w-md">
                     {links.map((link) => (
                         <Link
                             key={link.to}
                             to={link.to}
                             className={navLinkClass(link.to, link.accent)}
                         >
-                            <div className={`relative flex items-center justify-center w-12 h-8 rounded-xl transition-all duration-300 ${
+                            <div className={`relative flex items-center justify-center w-10 sm:w-12 h-8 rounded-xl transition-all duration-200 ${
                                 isActive(link.to)
                                     ? link.accent === 'red'
                                         ? 'bg-red-100 text-red-600'
@@ -237,12 +237,12 @@ export default function Layout({ user, setUser }) {
                                     : 'bg-transparent text-slate-400'
                             }`}>
                                 <link.icon
-                                    size={22}
+                                    size={20}
                                     strokeWidth={isActive(link.to) ? 2.5 : 2}
                                     className={`relative z-10 ${link.accent === 'red' ? (isActive(link.to) ? 'text-red-600' : 'text-red-500') : ''}`}
                                 />
                             </div>
-                            <span className={`text-[10px] font-bold transition-all duration-300 ${
+                            <span className={`text-[9px] sm:text-[10px] leading-tight font-bold transition-all duration-200 text-center truncate max-w-full ${
                                 isActive(link.to)
                                     ? link.accent === 'red'
                                         ? 'text-red-700'
@@ -251,7 +251,6 @@ export default function Layout({ user, setUser }) {
                             }`}>{link.label}</span>
                         </Link>
                     ))}
-                    
                 </nav>
             </div>
         </div>
