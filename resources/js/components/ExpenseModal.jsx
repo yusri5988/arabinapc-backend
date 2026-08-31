@@ -647,9 +647,6 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
                                         Review file list before clicking the AI scan button.
                                     </p>
                                 </div>
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                                    {stagedReceipts.length} {stagedReceipts.length === 1 ? 'file' : 'files'}
-                                </span>
                             </div>
 
                             <div className="grid grid-cols-1 gap-2">

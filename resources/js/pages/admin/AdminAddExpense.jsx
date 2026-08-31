@@ -653,16 +653,11 @@ export default function AdminAddExpense() {
                      {/* Staged Receipt Files List & Confirm Scan Button */}
                      {stagedReceipts.length > 0 && (
                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 text-sm text-slate-700 space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <p className="font-bold text-slate-900">Selected Receipts ({stagedReceipts.length})</p>
-                                    <p className="text-xs text-slate-500 font-medium">
-                                        Review file list before clicking the AI scan button.
-                                    </p>
-                                </div>
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                                    {stagedReceipts.length} {stagedReceipts.length === 1 ? 'file' : 'files'}
-                                </span>
+                            <div>
+                                <p className="font-bold text-slate-900">Selected Receipts ({stagedReceipts.length})</p>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Review file list before clicking the AI scan button.
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-1 gap-2">
