@@ -111,7 +111,7 @@ class AdminMediaTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
         $supervisor = User::factory()->supervisor()->create();
-        $file = UploadedFile::fake()->create('large-receipt.jpg', 15361, 'image/jpeg');
+        $file = UploadedFile::fake()->create('large-receipt.jpg', 20481, 'image/jpeg');
 
         $response = $this->actingAs($admin)
             ->postJson('/api/admin/process-receipt', [

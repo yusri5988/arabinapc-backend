@@ -199,10 +199,10 @@ class ProcessReceiptTest extends TestCase
             ->assertJsonValidationErrors('receipt');
     }
 
-    public function test_process_receipt_rejects_images_over_15_mib_and_logs_validation_failure(): void
+    public function test_process_receipt_rejects_images_over_20_mib_and_logs_validation_failure(): void
     {
         $supervisor = User::factory()->supervisor()->create();
-        $file = UploadedFile::fake()->create('large-receipt.jpg', 15361, 'image/jpeg');
+        $file = UploadedFile::fake()->create('large-receipt.jpg', 20481, 'image/jpeg');
 
         $response = $this->actingAs($supervisor)
             ->postJson('/api/supervisor/process-receipt', [
