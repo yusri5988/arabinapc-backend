@@ -182,7 +182,7 @@ export default function AdminTransactions() {
         retry: 1,
     });
 
-    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const transactions = data?.pages?.flatMap((page) => page?.transactions || []).filter(Boolean) ?? [];
     const totalAmount = data?.pages?.[0]?.total_amount ?? transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
     const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
@@ -554,7 +554,7 @@ export default function AdminTransactions() {
                                             {isMoneyIn(tx) ? '+' : '-'}RM {money(tx.amount)}
                                             </p>
                                             <p className="text-[9px] text-slate-400 font-bold tracking-widest mt-0.5">
-                                                #{tx.id.toString().padStart(4, '0')}
+                                                #{tx?.id ? String(tx.id).padStart(4, '0') : ''}
                                             </p>
                                         </div>
                                     </div>

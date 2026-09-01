@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 
 export default function SupervisorOverview() {
     const { data, isLoading } = useQuery({
-        queryKey: ['supervisorLedger'],
+        queryKey: ['supervisorOverview'],
         queryFn: async () => {
             const res = await api.get('/supervisor/ledger');
             return res.data;

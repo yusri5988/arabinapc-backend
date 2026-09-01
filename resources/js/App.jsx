@@ -15,6 +15,7 @@ import DeveloperOverview from './pages/developer/DeveloperOverview';
 import DeveloperActivityLogs from './pages/developer/DeveloperActivityLogs';
 import DeveloperExpenseLogs from './pages/developer/DeveloperExpenseLogs';
 import Profile from './pages/Profile';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useEffect, useState } from 'react';
 import { clearAuth, getToken, getUser } from './lib/authStorage';
 
@@ -108,56 +109,58 @@ function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <Toaster 
-                position="top-center" 
-                reverseOrder={false}
-                toastOptions={{
-                    duration: 3000,
-                    style: {
-                        background: '#fff',
-                        color: '#0f172a',
-                        fontWeight: 'bold',
-                        borderRadius: '1rem',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                    },
-                }}
-            />
-            <Router>
-                <Routes>
-                    <Route path="/login" element={!user || !token || !isValidUser(user) ? <Login setUser={setUser} /> : <RoleRedirect user={user} token={token} />} />
-                    
-                    <Route element={<Layout user={user} setUser={setUser} />}>
-                        <Route path="/" element={<RoleRedirect user={user} token={token} />} />
+            <ErrorBoundary>
+                <Toaster 
+                    position="top-center" 
+                    reverseOrder={false}
+                    toastOptions={{
+                        duration: 3000,
+                        style: {
+                            background: '#fff',
+                            color: '#0f172a',
+                            fontWeight: 'bold',
+                            borderRadius: '1rem',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        },
+                    }}
+                />
+                <Router>
+                    <Routes>
+                        <Route path="/login" element={!user || !token || !isValidUser(user) ? <Login setUser={setUser} /> : <RoleRedirect user={user} token={token} />} />
                         
-                        <Route path="admin" element={<AdminGuard user={user} token={token} />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<AdminOverview />} />
-                            <Route path="supervisors" element={<AdminSupervisors />} />
-                            <Route path="supervisors/:supervisorId/transactions" element={<AdminSupervisorTransactions />} />
-                            <Route path="send-to-supervisor" element={<AdminTopup />} />
-                            <Route path="topup" element={<Navigate to="send-to-supervisor" replace />} />
-                            <Route path="transactions" element={<AdminTransactions />} />
-                            <Route path="add-expense" element={<AdminAddExpense />} />
-                        </Route>
-                        
-                        <Route path="supervisor" element={<SupervisorGuard user={user} token={token} />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<SupervisorOverview />} />
-                            <Route path="ledger" element={<SupervisorLedger user={user} />} />
-                        </Route>
+                        <Route element={<Layout user={user} setUser={setUser} />}>
+                            <Route path="/" element={<RoleRedirect user={user} token={token} />} />
+                            
+                            <Route path="admin" element={<AdminGuard user={user} token={token} />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<AdminOverview />} />
+                                <Route path="supervisors" element={<AdminSupervisors />} />
+                                <Route path="supervisors/:supervisorId/transactions" element={<AdminSupervisorTransactions />} />
+                                <Route path="send-to-supervisor" element={<AdminTopup />} />
+                                <Route path="topup" element={<Navigate to="send-to-supervisor" replace />} />
+                                <Route path="transactions" element={<AdminTransactions />} />
+                                <Route path="add-expense" element={<AdminAddExpense />} />
+                            </Route>
+                            
+                            <Route path="supervisor" element={<SupervisorGuard user={user} token={token} />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<SupervisorOverview />} />
+                                <Route path="ledger" element={<SupervisorLedger user={user} />} />
+                            </Route>
 
-                        <Route path="developer" element={<DeveloperGuard user={user} token={token} />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<DeveloperOverview />} />
-                            <Route path="activity-logs" element={<DeveloperActivityLogs />} />
-                            <Route path="expense-logs" element={<DeveloperExpenseLogs />} />
-                        </Route>
+                            <Route path="developer" element={<DeveloperGuard user={user} token={token} />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<DeveloperOverview />} />
+                                <Route path="activity-logs" element={<DeveloperActivityLogs />} />
+                                <Route path="expense-logs" element={<DeveloperExpenseLogs />} />
+                            </Route>
 
-                        <Route path="profile" element={<Profile user={user} setUser={setUser} />} />
-                    </Route>
-                </Routes>
-            </Router>
+                            <Route path="profile" element={<Profile user={user} setUser={setUser} />} />
+                        </Route>
+                    </Routes>
+                </Router>
+            </ErrorBoundary>
         </QueryClientProvider>
     );
 }

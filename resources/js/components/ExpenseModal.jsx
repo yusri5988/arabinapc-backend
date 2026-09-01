@@ -220,17 +220,17 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
                         stopPolling();
                         logAction('receipt.polling_completed', 'success', {
                             job_id,
-                            amount: data.amount,
-                            payment_to: data.payment_to,
+                            amount: data?.amount,
+                            payment_to: data?.payment_to,
                         });
                         setForm((currentForm) => ({
                             ...currentForm,
-                            amount: data.amount ? String(data.amount) : currentForm.amount,
-                            payment_to: data.payment_to || currentForm.payment_to,
-                            description: data.description || currentForm.description,
-                            date: data.date || currentForm.date,
-                            receipt_url: data.receipt_url || currentForm.receipt_url,
-                            receipt_urls: data.receipt_urls || (data.receipt_url ? [data.receipt_url] : currentForm.receipt_urls)
+                            amount: data?.amount ? String(data.amount) : currentForm.amount,
+                            payment_to: data?.payment_to || currentForm.payment_to,
+                            description: data?.description || currentForm.description,
+                            date: data?.date || currentForm.date,
+                            receipt_url: data?.receipt_url || currentForm.receipt_url,
+                            receipt_urls: data?.receipt_urls || (data?.receipt_url ? [data.receipt_url] : currentForm.receipt_urls)
                         }));
                         setScannedSuccess(true);
                         setProcessing(false);
@@ -430,8 +430,8 @@ export default function ExpenseModal({ isOpen, onClose, onRefresh, maxAmount, de
                 site_id: form.site_id,
             });
 
-            onRefresh();
-            onClose();
+            onRefresh?.();
+            onClose?.();
         } catch (err) {
             logAction('expense.api_response_received', 'fail', {
                 amount: form.amount,

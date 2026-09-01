@@ -123,7 +123,7 @@ export default function AdminSupervisorTransactions() {
     });
 
     const supervisor = data?.pages?.[0]?.supervisor;
-    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const transactions = data?.pages?.flatMap((page) => page?.transactions || []).filter(Boolean) ?? [];
     const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     return (

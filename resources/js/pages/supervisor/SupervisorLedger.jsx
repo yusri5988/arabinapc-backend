@@ -95,7 +95,7 @@ export default function SupervisorLedger({ user }) {
 
     const balance = data?.pages?.[0]?.balance;
     const department = data?.pages?.[0]?.department;
-    const transactions = data?.pages?.flatMap((page) => page.transactions) ?? [];
+    const transactions = data?.pages?.flatMap((page) => page?.transactions || []).filter(Boolean) ?? [];
     const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     return (
@@ -229,11 +229,10 @@ export default function SupervisorLedger({ user }) {
                                                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                                                     <a
                                                         href={normalizeUrl(tx.metadata.item_images[0]?.url)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
                                                         onClick={(event) => {
-                                                            event.preventDefault();
                                                             event.stopPropagation();
-                                                            const url = normalizeUrl(tx.metadata.item_images[0]?.url);
-                                                            if (url) window.location.assign(url);
                                                         }}
                                                         className="inline-flex rounded-md px-1.5 py-0.5 text-slate-600 underline decoration-slate-200 underline-offset-2 hover:bg-slate-50 hover:text-slate-800"
                                                     >
@@ -246,11 +245,10 @@ export default function SupervisorLedger({ user }) {
                                                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                                                     <a
                                                         href={normalizeUrl(tx.receipt_url)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
                                                         onClick={(event) => {
-                                                            event.preventDefault();
                                                             event.stopPropagation();
-                                                            const url = normalizeUrl(tx.receipt_url);
-                                                            if (url) window.location.assign(url);
                                                         }}
                                                         className="inline-flex rounded-md px-1.5 py-0.5 text-emerald-600 underline decoration-emerald-200 underline-offset-2 hover:bg-emerald-50 hover:text-emerald-700"
                                                     >
@@ -268,7 +266,7 @@ export default function SupervisorLedger({ user }) {
                                         {isMoneyIn(tx) ? '+' : '-'}RM {tx.amount}
                                     </p>
                                     <p className="text-[9px] text-slate-400 font-bold tracking-widest mt-0.5">
-                                        #{tx.id.toString().padStart(4, '0')}
+                                        #{tx?.id ? String(tx.id).padStart(4, '0') : ''}
                                     </p>
                                 </div>
                             </div>
