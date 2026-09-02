@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -40,12 +41,13 @@ class ExcelExportService
             'Details',
             'Month',
             'Site ID',
-            'Doc.Link',
+            'Receipt Links',
+            'Item Photo Links',
         ];
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:M1');
+        $headerStyle = $sheet->getStyle('A1:N1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -86,12 +88,8 @@ class ExcelExportService
 
                 $runningBalance = $runningBalance + $moneyIn - $moneyOut;
                 $balance = $runningBalance;
-                $docLink = $transaction->receipt_url;
-                $itemImages = data_get($transaction->metadata, 'item_images', []);
-
-                if (empty($docLink) && is_array($itemImages) && ! empty($itemImages)) {
-                    $docLink = $itemImages[0]['url'] ?? '';
-                }
+                $receiptLinks = $this->receiptLinks($transaction);
+                $itemPhotoLinks = $this->itemPhotoLinks($transaction);
 
                 $sheet->setCellValueExplicit("A{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("B{$row}", (string) $paymentTo, DataType::TYPE_STRING);
@@ -105,13 +103,14 @@ class ExcelExportService
                 $sheet->setCellValueExplicit("J{$row}", (string) $displayDetails, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("K{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit("L{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("M{$row}", (string) $docLink, DataType::TYPE_STRING);
+                $this->setLinksCell($sheet, "M{$row}", $receiptLinks);
+                $this->setLinksCell($sheet, "N{$row}", $itemPhotoLinks);
 
                 $row++;
             }
         }
 
-        foreach (range('A', 'M') as $column) {
+        foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -157,12 +156,13 @@ class ExcelExportService
             'Details',
             'Month',
             'Site ID',
-            'Doc.Link',
+            'Receipt Links',
+            'Item Photo Links',
         ];
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:N1');
+        $headerStyle = $sheet->getStyle('A1:O1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -198,12 +198,8 @@ class ExcelExportService
 
             $runningBalance = $runningBalance + $moneyIn - $moneyOut;
             $balance = $runningBalance;
-            $docLink = $transaction->receipt_url;
-            $itemImages = data_get($transaction->metadata, 'item_images', []);
-
-            if (empty($docLink) && is_array($itemImages) && ! empty($itemImages)) {
-                $docLink = $itemImages[0]['url'] ?? '';
-            }
+            $receiptLinks = $this->receiptLinks($transaction);
+            $itemPhotoLinks = $this->itemPhotoLinks($transaction);
 
             $staffName = $transaction->user?->name ?? 'Unknown';
 
@@ -220,7 +216,8 @@ class ExcelExportService
             $sheet->setCellValueExplicit("K{$row}", (string) $displayDetails, DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("L{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("M{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("N{$row}", (string) $docLink, DataType::TYPE_STRING);
+            $this->setLinksCell($sheet, "N{$row}", $receiptLinks);
+            $this->setLinksCell($sheet, "O{$row}", $itemPhotoLinks);
 
             $row++;
         }
@@ -230,7 +227,7 @@ class ExcelExportService
             $sheet->setCellValueExplicit("H2", number_format(0, 2, '.', ''), DataType::TYPE_NUMERIC);
         }
 
-        foreach (range('A', 'N') as $column) {
+        foreach (range('A', 'O') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -248,6 +245,68 @@ class ExcelExportService
             'file_path' => $fullPath,
             'file_name' => $fileName,
         ];
+    }
+
+    /** @return list<string> */
+    private function receiptLinks(Transaction $transaction): array
+    {
+        $links = data_get($transaction->metadata, 'receipt_urls', []);
+        $links = is_array($links) ? $links : [];
+
+        if (empty($links) && $transaction->receipt_url) {
+            $links = [$transaction->receipt_url];
+        }
+
+        return $this->normalizeLinks($links);
+    }
+
+    /** @return list<string> */
+    private function itemPhotoLinks(Transaction $transaction): array
+    {
+        $images = data_get($transaction->metadata, 'item_images', []);
+        $urls = is_array($images)
+            ? array_map(fn ($image) => is_array($image) ? ($image['url'] ?? '') : '', $images)
+            : [];
+
+        return $this->normalizeLinks($urls);
+    }
+
+    /** @param array<int, mixed> $links @return list<string> */
+    private function normalizeLinks(array $links): array
+    {
+        $apiUrl = rtrim((string) config('app.api_url', config('app.url')), '/');
+
+        return array_values(array_unique(array_filter(array_map(function ($link) use ($apiUrl) {
+            if (! is_string($link) || $link === '') {
+                return null;
+            }
+
+            $link = trim($link);
+            preg_match_all('/https?:\/\//i', $link, $matches, PREG_OFFSET_CAPTURE);
+            if (count($matches[0]) > 1) {
+                $link = substr($link, (int) end($matches[0])[1]);
+            }
+
+            $link = str_replace('/storage/receipts/', '/receipts/', $link);
+            $link = str_replace('/storage/expense-items/', '/expense-items/', $link);
+
+            return preg_match('/^https?:\/\//i', $link)
+                ? $link
+                : $apiUrl.'/'.ltrim($link, '/');
+        }, $links))));
+    }
+
+    /** @param list<string> $links */
+    private function setLinksCell(Worksheet $sheet, string $cell, array $links): void
+    {
+        if (empty($links)) {
+            $sheet->setCellValueExplicit($cell, '', DataType::TYPE_STRING);
+            return;
+        }
+
+        $sheet->setCellValueExplicit($cell, implode("\n", $links), DataType::TYPE_STRING);
+        $sheet->getStyle($cell)->getAlignment()->setWrapText(true);
+        $sheet->getCell($cell)->getHyperlink()->setUrl($links[0]);
     }
 
     public function generateConsolidated(string $startDate, string $endDate): array
