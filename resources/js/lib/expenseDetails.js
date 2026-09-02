@@ -10,6 +10,7 @@ export const DEPARTMENT_DETAILS_OPTIONS = {
         'Fuel',
         'Travel Expenses',
         'Logistic to Site',
+        'Stock Warehouse',
         'Uniform',
         'Tools & Equipment',
         'Welfare',
