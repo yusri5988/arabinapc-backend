@@ -298,5 +298,76 @@ class AdminTransactionCrudTest extends TestCase
             ->assertJsonCount(1, 'transactions')
             ->assertJsonPath('transactions.0.description', 'Topup 1');
     }
-}
 
+    public function test_admin_can_filter_transactions_by_date_range(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 100,
+            'description' => 'Tx Jan',
+            'date' => '2026-01-15',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 200,
+            'description' => 'Tx Feb',
+            'date' => '2026-02-15',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 300,
+            'description' => 'Tx Mar',
+            'date' => '2026-03-15',
+        ]);
+
+        // Filter for Feb only
+        $response = $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-02-01&end_date=2026-02-28')
+            ->assertOk()
+            ->assertJsonCount(1, 'transactions')
+            ->assertJsonPath('transactions.0.description', 'Tx Feb')
+            ->assertJsonPath('total_amount', 200);
+
+        // Filter from Feb onwards
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-02-01')
+            ->assertOk()
+            ->assertJsonCount(2, 'transactions')
+            ->assertJsonPath('total_amount', 500);
+
+        // Filter up to Feb
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?end_date=2026-02-28')
+            ->assertOk()
+            ->assertJsonCount(2, 'transactions')
+            ->assertJsonPath('total_amount', 300);
+    }
+
+    public function test_admin_cannot_filter_transactions_with_invalid_or_reversed_dates(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=not-a-date')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_date']);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?end_date=not-a-date')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_date']);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-03-01&end_date=2026-02-28')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_date']);
+    }
+}

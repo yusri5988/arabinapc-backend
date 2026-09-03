@@ -5,7 +5,7 @@ import api from '../../lib/axios';
 import AdminTransactionModal from '../../components/AdminTransactionModal';
 import TransactionDetailModal from '../../components/TransactionDetailModal';
 import { normalizeSupervisors } from '../../lib/normalize';
-import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2, Loader2, FileDown, Calendar, FileSpreadsheet, ChevronDown } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, History, RefreshCw, FileText, UserRound, BadgeInfo, ReceiptText, Pencil, Trash2, Loader2, FileDown, Calendar, FileSpreadsheet, ChevronDown, X } from 'lucide-react';
 
 const money = (value) =>
     Number(value ?? 0).toLocaleString('en-MY', {
@@ -118,6 +118,8 @@ export default function AdminTransactions() {
     const [viewingTransaction, setViewingTransaction] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
     const [selectedStaffId, setSelectedStaffId] = useState('');
+    const [txStartDate, setTxStartDate] = useState('');
+    const [txEndDate, setTxEndDate] = useState('');
     const [activeTab, setActiveTab] = useState('transactions');
     const [exporting, setExporting] = useState(false);
     const [exportingConsolidated, setExportingConsolidated] = useState(false);
@@ -161,11 +163,13 @@ export default function AdminTransactions() {
         hasNextPage,
         isFetchingNextPage,
     } = useInfiniteQuery({
-        queryKey: ['adminTransactions', selectedStaffId],
+        queryKey: ['adminTransactions', selectedStaffId, txStartDate, txEndDate],
         queryFn: async ({ pageParam = 1 }) => {
             const res = await api.get('/admin/transactions', {
                 params: {
                     user_id: selectedStaffId || undefined,
+                    start_date: txStartDate || undefined,
+                    end_date: txEndDate || undefined,
                     page: pageParam,
                     per_page: 10,
                 }
@@ -419,19 +423,58 @@ export default function AdminTransactions() {
                 </div>
             </div>
             <div className="bg-white border border-slate-200/60 rounded-[2rem] overflow-hidden shadow-sm">
-                <div className="p-5 md:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+                <div className="p-5 md:p-6 border-b border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-50/50">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200/50">
                             <History className="text-slate-700" size={18} strokeWidth={2.5} />
                         </div>
-                        <h3 className="text-base font-bold text-slate-900">Transaction History</h3>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900">Transaction History</h3>
+                            {(txStartDate || txEndDate || selectedStaffId) && (
+                                <p className="text-xs text-emerald-600 font-semibold mt-0.5">
+                                    Filtered view • {totalTransactionsCount} record{totalTransactionsCount === 1 ? '' : 's'}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+                        <div className="h-10 flex items-center gap-1.5 bg-white border border-slate-200/70 rounded-xl px-3 shadow-sm text-sm">
+                            <Calendar size={15} className="text-slate-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={txStartDate}
+                                onChange={(e) => setTxStartDate(e.target.value)}
+                                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                                title="Start Date"
+                            />
+                            <span className="text-slate-400 text-xs font-bold">-</span>
+                            <input
+                                type="date"
+                                value={txEndDate}
+                                onChange={(e) => setTxEndDate(e.target.value)}
+                                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                                title="End Date"
+                            />
+                            {(txStartDate || txEndDate) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTxStartDate('');
+                                        setTxEndDate('');
+                                    }}
+                                    className="p-0.5 text-slate-400 hover:text-rose-500 transition-colors ml-1"
+                                    title="Clear date filter"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
                         <select
                             value={selectedStaffId}
                             onChange={(e) => setSelectedStaffId(e.target.value)}
-                            className="w-full sm:w-56 bg-white border border-slate-200/70 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 shadow-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            className="h-10 bg-white border border-slate-200/70 rounded-xl px-3 text-xs md:text-sm font-bold text-slate-700 shadow-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                         >
                             <option value="">All Staff</option>
                             {supervisors.map((sv) => (
@@ -445,19 +488,19 @@ export default function AdminTransactions() {
                             type="button"
                             onClick={handleExportAll}
                             disabled={exporting}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
+                            className="h-10 inline-flex items-center gap-2 px-4 bg-emerald-600 text-white rounded-xl text-xs md:text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
                         >
                             {exporting ? (
                                 <><Loader2 className="w-4 h-4 animate-spin" /> Exporting...</>
                             ) : (
-                                <><FileDown size={16} /> Export Excel</>
+                                <><FileDown size={15} /> Export Excel</>
                             )}
                         </button>
 
                         <button
                             type="button"
                             onClick={() => refetch()}
-                            className="md:hidden w-9 h-9 flex items-center justify-center shrink-0 rounded-xl bg-white border border-slate-200/50 text-slate-500 transition-all hover:border-slate-300 hover:text-emerald-600 shadow-sm active:scale-95"
+                            className="md:hidden h-10 w-10 flex items-center justify-center shrink-0 rounded-xl bg-white border border-slate-200/50 text-slate-500 transition-all hover:border-slate-300 hover:text-emerald-600 shadow-sm active:scale-95"
                         >
                             <RefreshCw size={16} strokeWidth={2.5} className={isFetching ? 'animate-spin text-emerald-600' : ''} />
                         </button>

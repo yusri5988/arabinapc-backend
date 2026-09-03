@@ -14,11 +14,22 @@ class TransactionController extends Controller
 {
     public function index(Request $request)
     {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
         $baseQuery = Transaction::whereHas('user', function ($query) {
                 $query->where('role', 'supervisor');
             })
             ->when($request->filled('user_id'), function ($query) use ($request) {
                 $query->where('user_id', $request->input('user_id'));
+            })
+            ->when($validated['start_date'] ?? null, function ($query, $startDate) {
+                $query->whereDate('date', '>=', $startDate);
+            })
+            ->when($validated['end_date'] ?? null, function ($query, $endDate) {
+                $query->whereDate('date', '<=', $endDate);
             });
 
         $totalAmount = (float) (clone $baseQuery)->sum('amount');
