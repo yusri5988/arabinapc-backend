@@ -29,7 +29,8 @@ class ExcelExportService
         $sheet->setTitle('Petty Cash');
 
         $headers = [
-            'Date',
+            'Date Receipt',
+            'Date Created',
             'Payment To',
             'Details',
             'Remark',
@@ -47,7 +48,7 @@ class ExcelExportService
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:N1');
+        $headerStyle = $sheet->getStyle('A1:O1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -56,8 +57,9 @@ class ExcelExportService
 
         if ($transactions->isEmpty()) {
             $sheet->setCellValue("A{$row}", now()->format('d/m/Y'));
-            $sheet->setCellValue("B{$row}", 'Opening Balance');
-            $sheet->setCellValueExplicit("G{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
+            $sheet->setCellValue("B{$row}", now()->format('d/m/Y H:i'));
+            $sheet->setCellValue("C{$row}", 'Opening Balance');
+            $sheet->setCellValueExplicit("H{$row}", number_format($openingBalance, 2, '.', ''), DataType::TYPE_NUMERIC);
         } else {
             foreach ($transactions as $transaction) {
                 $amount = (float) $transaction->amount;
@@ -92,25 +94,26 @@ class ExcelExportService
                 $itemPhotoLinks = $this->itemPhotoLinks($transaction);
 
                 $sheet->setCellValueExplicit("A{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("B{$row}", (string) $paymentTo, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("C{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("D{$row}", (string) $remark, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("E{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("F{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("G{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("H{$row}", $inflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("I{$row}", $outflowType, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("J{$row}", (string) $displayDetails, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("K{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit("L{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-                $this->setLinksCell($sheet, "M{$row}", $receiptLinks);
-                $this->setLinksCell($sheet, "N{$row}", $itemPhotoLinks);
+                $sheet->setCellValueExplicit("B{$row}", optional($transaction->created_at)->format('d/m/Y H:i') ?? '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("C{$row}", (string) $paymentTo, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("D{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("E{$row}", (string) $remark, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("F{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("G{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("H{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("I{$row}", $inflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("J{$row}", $outflowType, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("K{$row}", (string) $displayDetails, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("L{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit("M{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
+                $this->setLinksCell($sheet, "N{$row}", $receiptLinks);
+                $this->setLinksCell($sheet, "O{$row}", $itemPhotoLinks);
 
                 $row++;
             }
         }
 
-        foreach (range('A', 'N') as $column) {
+        foreach (range('A', 'O') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -144,7 +147,8 @@ class ExcelExportService
 
         $headers = [
             'Staff',
-            'Date',
+            'Date Receipt',
+            'Date Created',
             'Payment To',
             'Details',
             'Remark',
@@ -162,7 +166,7 @@ class ExcelExportService
 
         $sheet->fromArray($headers, null, 'A1');
 
-        $headerStyle = $sheet->getStyle('A1:O1');
+        $headerStyle = $sheet->getStyle('A1:P1');
         $headerStyle->getFont()->setBold(true);
         $headerStyle->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDCFCE7');
 
@@ -205,29 +209,30 @@ class ExcelExportService
 
             $sheet->setCellValueExplicit("A{$row}", (string) $staffName, DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("B{$row}", optional($transaction->date)->format('d/m/Y') ?? '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("C{$row}", (string) $paymentTo, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("D{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("E{$row}", (string) $remark, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("F{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("G{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("H{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("I{$row}", $inflowType, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("J{$row}", $outflowType, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("K{$row}", (string) $displayDetails, DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("L{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
-            $sheet->setCellValueExplicit("M{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
-            $this->setLinksCell($sheet, "N{$row}", $receiptLinks);
-            $this->setLinksCell($sheet, "O{$row}", $itemPhotoLinks);
+            $sheet->setCellValueExplicit("C{$row}", optional($transaction->created_at)->format('d/m/Y H:i') ?? '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("D{$row}", (string) $paymentTo, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("E{$row}", (string) ($transaction->description ?? ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("F{$row}", (string) $remark, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("G{$row}", $moneyOut > 0 ? number_format($moneyOut, 2, '.', '') : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("H{$row}", $moneyIn > 0 ? number_format($moneyIn, 2, '.', '') : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("I{$row}", number_format($balance, 2, '.', ''), DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("J{$row}", $inflowType, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("K{$row}", $outflowType, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("L{$row}", (string) $displayDetails, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("M{$row}", optional($transaction->date)->format('F') ? strtoupper(optional($transaction->date)->format('F')) : '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("N{$row}", (string) ($transaction->site_id ?? ''), DataType::TYPE_STRING);
+            $this->setLinksCell($sheet, "O{$row}", $receiptLinks);
+            $this->setLinksCell($sheet, "P{$row}", $itemPhotoLinks);
 
             $row++;
         }
 
         if ($transactions->isEmpty()) {
             $sheet->setCellValue("A2", 'No transactions');
-            $sheet->setCellValueExplicit("H2", number_format(0, 2, '.', ''), DataType::TYPE_NUMERIC);
+            $sheet->setCellValueExplicit("I2", number_format(0, 2, '.', ''), DataType::TYPE_NUMERIC);
         }
 
-        foreach (range('A', 'O') as $column) {
+        foreach (range('A', 'P') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 

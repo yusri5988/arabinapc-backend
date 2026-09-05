@@ -43,18 +43,21 @@ class ExcelExportRemarkTest extends TestCase
 
         // Check Header Row
         $this->assertEquals('Staff', $sheet->getCell('A1')->getValue());
-        $this->assertEquals('Date', $sheet->getCell('B1')->getValue());
-        $this->assertEquals('Payment To', $sheet->getCell('C1')->getValue());
-        $this->assertEquals('Details', $sheet->getCell('D1')->getValue());
-        $this->assertEquals('Remark', $sheet->getCell('E1')->getValue());
-        $this->assertEquals('Money Out', $sheet->getCell('F1')->getValue());
-        $this->assertEquals('Money In', $sheet->getCell('G1')->getValue());
+        $this->assertEquals('Date Receipt', $sheet->getCell('B1')->getValue());
+        $this->assertEquals('Date Created', $sheet->getCell('C1')->getValue());
+        $this->assertEquals('Payment To', $sheet->getCell('D1')->getValue());
+        $this->assertEquals('Details', $sheet->getCell('E1')->getValue());
+        $this->assertEquals('Remark', $sheet->getCell('F1')->getValue());
+        $this->assertEquals('Money Out', $sheet->getCell('G1')->getValue());
+        $this->assertEquals('Money In', $sheet->getCell('H1')->getValue());
 
         // Check Row 2 Data
         $this->assertEquals('John Doe', $sheet->getCell('A2')->getValue());
-        $this->assertEquals('Supervisor Topup', $sheet->getCell('C2')->getValue());
-        $this->assertEquals('Topup tapak projek Cyberjaya', $sheet->getCell('E2')->getValue());
-        $this->assertEquals('500.00', $sheet->getCell('G2')->getValue());
+        $this->assertEquals(now()->format('d/m/Y'), $sheet->getCell('B2')->getValue());
+        $this->assertEquals(now()->format('d/m/Y H:i'), $sheet->getCell('C2')->getValue());
+        $this->assertEquals('Supervisor Topup', $sheet->getCell('D2')->getValue());
+        $this->assertEquals('Topup tapak projek Cyberjaya', $sheet->getCell('F2')->getValue());
+        $this->assertEquals('500.00', $sheet->getCell('H2')->getValue());
 
         if (file_exists($exportResult['file_path'])) {
             unlink($exportResult['file_path']);
@@ -88,13 +91,16 @@ class ExcelExportRemarkTest extends TestCase
         $sheet = $spreadsheet->getActiveSheet();
 
         // Check Header Row
-        $this->assertEquals('Date', $sheet->getCell('A1')->getValue());
-        $this->assertEquals('Payment To', $sheet->getCell('B1')->getValue());
-        $this->assertEquals('Details', $sheet->getCell('C1')->getValue());
-        $this->assertEquals('Remark', $sheet->getCell('D1')->getValue());
+        $this->assertEquals('Date Receipt', $sheet->getCell('A1')->getValue());
+        $this->assertEquals('Date Created', $sheet->getCell('B1')->getValue());
+        $this->assertEquals('Payment To', $sheet->getCell('C1')->getValue());
+        $this->assertEquals('Details', $sheet->getCell('D1')->getValue());
+        $this->assertEquals('Remark', $sheet->getCell('E1')->getValue());
 
         // Check Row 2 Data
-        $this->assertEquals('Duit kecemasan', $sheet->getCell('D2')->getValue());
+        $this->assertEquals(now()->format('d/m/Y'), $sheet->getCell('A2')->getValue());
+        $this->assertEquals(now()->format('d/m/Y H:i'), $sheet->getCell('B2')->getValue());
+        $this->assertEquals('Duit kecemasan', $sheet->getCell('E2')->getValue());
 
         if (file_exists($exportResult['file_path'])) {
             unlink($exportResult['file_path']);

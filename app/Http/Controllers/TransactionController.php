@@ -32,7 +32,8 @@ class TransactionController extends Controller
                 $query->whereDate('date', '<=', $endDate);
             });
 
-        $totalAmount = (float) (clone $baseQuery)->sum('amount');
+        $totalIn = (float) (clone $baseQuery)->where('type', 'topup')->sum('amount');
+        $totalOut = (float) (clone $baseQuery)->whereIn('type', ['expense', 'return_to_admin'])->sum('amount');
         $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
 
         $paginator = (clone $baseQuery)
@@ -67,7 +68,9 @@ class TransactionController extends Controller
 
         return response()->json([
             'transactions' => $transactions,
-            'total_amount' => $totalAmount,
+            'total_in' => $totalIn,
+            'total_out' => $totalOut,
+            'net' => $totalIn - $totalOut,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),

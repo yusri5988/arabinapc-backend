@@ -187,7 +187,10 @@ export default function AdminTransactions() {
     });
 
     const transactions = data?.pages?.flatMap((page) => page?.transactions || []).filter(Boolean) ?? [];
-    const totalAmount = data?.pages?.[0]?.total_amount ?? transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const firstPage = data?.pages?.[0] ?? {};
+    const totalIn = firstPage.total_in ?? transactions.filter((tx) => tx.type === 'topup').reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const totalOut = firstPage.total_out ?? transactions.filter((tx) => ['expense', 'return_to_admin'].includes(tx.type)).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    const net = firstPage.net ?? (totalIn - totalOut);
     const totalTransactionsCount = data?.pages?.[0]?.pagination?.total ?? transactions.length;
 
     const openEditModal = (transaction) => {
@@ -417,8 +420,9 @@ export default function AdminTransactions() {
                         <BadgeInfo size={20} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-300">Total amount recorded</p>
-                        <p className="text-2xl md:text-3xl font-black mt-1">RM {money(totalAmount)}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-300">Net balance</p>
+                        <p className="text-2xl md:text-3xl font-black mt-1">RM {money(net)}</p>
+                        <p className="text-xs font-semibold text-slate-300 mt-1">In RM {money(totalIn)} · Out RM {money(totalOut)}</p>
                     </div>
                 </div>
             </div>

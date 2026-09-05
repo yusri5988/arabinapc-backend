@@ -334,21 +334,27 @@ class AdminTransactionCrudTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'transactions')
             ->assertJsonPath('transactions.0.description', 'Tx Feb')
-            ->assertJsonPath('total_amount', 200);
+            ->assertJsonPath('total_in', 200)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 200);
 
         // Filter from Feb onwards
         $this->actingAs($admin)
             ->getJson('/api/admin/transactions?start_date=2026-02-01')
             ->assertOk()
             ->assertJsonCount(2, 'transactions')
-            ->assertJsonPath('total_amount', 500);
+            ->assertJsonPath('total_in', 500)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 500);
 
         // Filter up to Feb
         $this->actingAs($admin)
             ->getJson('/api/admin/transactions?end_date=2026-02-28')
             ->assertOk()
             ->assertJsonCount(2, 'transactions')
-            ->assertJsonPath('total_amount', 300);
+            ->assertJsonPath('total_in', 300)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 300);
     }
 
     public function test_admin_cannot_filter_transactions_with_invalid_or_reversed_dates(): void
@@ -369,5 +375,47 @@ class AdminTransactionCrudTest extends TestCase
             ->getJson('/api/admin/transactions?start_date=2026-03-01&end_date=2026-02-28')
             ->assertStatus(422)
             ->assertJsonValidationErrors(['end_date']);
+    }
+
+    public function test_admin_transaction_totals_split_money_in_and_out(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Topup',
+            'date' => '2026-02-01',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 100,
+            'payment_to' => 'Vendor A',
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'date' => '2026-02-02',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'return_to_admin',
+            'amount' => 400,
+            'payment_to' => 'Admin',
+            'description' => 'Returned to admin',
+            'date' => '2026-02-03',
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions')
+            ->assertOk()
+            ->assertJsonPath('total_in', 500)
+            ->assertJsonPath('total_out', 500)
+            ->assertJsonPath('net', 0)
+            ->assertJsonMissingPath('total_amount');
     }
 }
