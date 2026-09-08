@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Loader2, X } from 'lucide-react';
+import { ImagePlus, Loader2, ReceiptText, Trash2, Upload, X } from 'lucide-react';
 import api from '../lib/axios';
 import { normalizeSupervisors } from '../lib/normalize';
 import { getDetailsOptions } from '../lib/expenseDetails';
 
 const today = () => new Date().toISOString().split('T')[0];
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+const existingReceiptUrls = (transaction) => {
+    const urls = Array.isArray(transaction?.metadata?.receipt_urls)
+        ? transaction.metadata.receipt_urls
+        : [];
+
+    return [...new Set((urls.length ? urls : [transaction?.receipt_url]).filter(Boolean))];
+};
 
 const getErrorMessage = (error) => {
     const data = error?.response?.data;
@@ -21,7 +30,13 @@ const getErrorMessage = (error) => {
 
 export default function AdminTransactionModal({ isOpen, onClose, onSaved, transaction }) {
     const isEdit = Boolean(transaction?.id);
+    const receiptInputRef = useRef(null);
+    const itemImageInputRef = useRef(null);
     const [loading, setLoading] = useState(false);
+    const [uploadingReceipts, setUploadingReceipts] = useState(false);
+    const [uploadingItems, setUploadingItems] = useState(false);
+    const [receiptUrls, setReceiptUrls] = useState([]);
+    const [itemImages, setItemImages] = useState([]);
     const [form, setForm] = useState({
         supervisor_id: '',
         type: 'expense',
@@ -62,6 +77,8 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                 site_id: transaction.site_id || '',
                 date: transaction.date || today(),
             });
+            setReceiptUrls(existingReceiptUrls(transaction));
+            setItemImages(Array.isArray(transaction.metadata?.item_images) ? transaction.metadata.item_images : []);
         } else {
             setForm({
                 supervisor_id: '',
@@ -73,7 +90,11 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                 site_id: '',
                 date: today(),
             });
+            setReceiptUrls([]);
+            setItemImages([]);
         }
+        setUploadingReceipts(false);
+        setUploadingItems(false);
     }, [isOpen, isEdit, transaction]);
 
     const isExpense = form.type === 'expense';
@@ -99,6 +120,81 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
 
     if (!isOpen) return null;
 
+    const validateFiles = (files, allowed) => {
+        const invalid = files.find((file) => file.size > MAX_FILE_SIZE || !allowed(file));
+        if (!invalid) return true;
+
+        toast.error(`${invalid.name} is invalid or exceeds 20 MB.`);
+        return false;
+    };
+
+    const handleReceiptUpload = async (event) => {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!files.length) return;
+        if (!form.site_id.trim()) {
+            toast.error('Enter Site ID before uploading receipts.');
+            return;
+        }
+        if (!validateFiles(files, (file) => file.type.startsWith('image/') || file.type === 'application/pdf')) return;
+
+        setUploadingReceipts(true);
+        try {
+            const data = new FormData();
+            files.forEach((file) => data.append('receipts[]', file));
+            data.append('site_id', form.site_id.trim());
+            data.append('supervisor_id', form.supervisor_id);
+
+            const response = await api.post('/admin/process-receipt', data, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            const uploaded = response.data.receipt_urls || (response.data.receipt_url ? [response.data.receipt_url] : []);
+            setReceiptUrls((current) => [...new Set([...current, ...uploaded])]);
+            toast.success(`${uploaded.length} receipt file(s) uploaded.`);
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+        } finally {
+            setUploadingReceipts(false);
+        }
+    };
+
+    const handleItemImageUpload = async (event) => {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!files.length) return;
+        if (!form.site_id.trim()) {
+            toast.error('Enter Site ID before uploading item photos.');
+            return;
+        }
+        const remaining = 4 - itemImages.length;
+        if (remaining <= 0 || files.length > remaining) {
+            toast.error(`Maximum 4 item photos. ${remaining} slot(s) available.`);
+            return;
+        }
+        if (!validateFiles(files, (file) => file.type.startsWith('image/'))) return;
+
+        setUploadingItems(true);
+        try {
+            const uploaded = [];
+            for (const file of files) {
+                const data = new FormData();
+                data.append('item_image', file);
+                data.append('site_id', form.site_id.trim());
+                data.append('supervisor_id', form.supervisor_id);
+                const response = await api.post('/admin/process-item-image', data, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                uploaded.push({ url: response.data.image_url, name: response.data.file_name || file.name });
+            }
+            setItemImages((current) => [...current, ...uploaded]);
+            toast.success(`${uploaded.length} item photo(s) uploaded.`);
+        } catch (error) {
+            toast.error(getErrorMessage(error));
+        } finally {
+            setUploadingItems(false);
+        }
+    };
+
     const handleSubmit = async (event) => {
         event.preventDefault();
         setLoading(true);
@@ -111,11 +207,19 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                     details: form.details,
                     description: form.description,
                     site_id: form.site_id,
+                    receipt_url: receiptUrls[0] || null,
+                    receipt_urls: receiptUrls,
+                    item_images: itemImages,
                     date: form.date,
                 });
                 toast.success('Transaction updated.');
             } else {
-                await api.post('/admin/transactions', form);
+                await api.post('/admin/transactions', {
+                    ...form,
+                    receipt_url: receiptUrls[0] || null,
+                    receipt_urls: receiptUrls,
+                    item_images: itemImages,
+                });
                 toast.success('Transaction created.');
             }
 
@@ -140,6 +244,7 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                             {isEdit ? 'Supervisor and type are locked after create.' : 'Create topup or expense for staff.'}
                         </p>
                     </div>
+
                     <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
                         <X size={22} />
                     </button>
@@ -261,6 +366,52 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                         />
                     </div>
 
+                    {isExpense && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <input ref={receiptInputRef} type="file" accept="image/*,application/pdf" multiple onChange={handleReceiptUpload} className="hidden" />
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><ReceiptText size={16} /> Receipts</p>
+                                        <p className="mt-1 text-xs text-slate-400">{receiptUrls.length} attached, 20 MB each</p>
+                                    </div>
+                                    <button type="button" disabled={uploadingReceipts} onClick={() => receiptInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                                        {uploadingReceipts ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Add
+                                    </button>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                    {receiptUrls.map((url, index) => (
+                                        <div key={`${url}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                            <a href={url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-xs font-semibold text-emerald-700">Receipt {index + 1}</a>
+                                            <button type="button" onClick={() => setReceiptUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="text-slate-400 hover:text-red-600" title="Remove receipt"><Trash2 size={14} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <input ref={itemImageInputRef} type="file" accept="image/*" multiple onChange={handleItemImageUpload} className="hidden" />
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="flex items-center gap-2 text-sm font-bold text-slate-800"><ImagePlus size={16} /> Item Photos</p>
+                                        <p className="mt-1 text-xs text-slate-400">{itemImages.length}/4 attached</p>
+                                    </div>
+                                    <button type="button" disabled={uploadingItems || itemImages.length >= 4} onClick={() => itemImageInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                                        {uploadingItems ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Add
+                                    </button>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                    {itemImages.map((image, index) => (
+                                        <div key={`${image.url}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                            <a href={image.url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-xs font-semibold text-sky-700">{image.name || `Item ${index + 1}`}</a>
+                                            <button type="button" onClick={() => setItemImages((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="text-slate-400 hover:text-red-600" title="Remove item photo"><Trash2 size={14} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex flex-col-reverse md:flex-row md:justify-end gap-3 pt-2">
                         <button
                             type="button"
@@ -271,7 +422,7 @@ export default function AdminTransactionModal({ isOpen, onClose, onSaved, transa
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || uploadingReceipts || uploadingItems}
                             className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50"
                         >
                             {loading && <Loader2 size={18} className="animate-spin" />}

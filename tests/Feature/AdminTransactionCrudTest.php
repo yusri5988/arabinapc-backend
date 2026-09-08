@@ -94,6 +94,50 @@ class AdminTransactionCrudTest extends TestCase
         $this->assertEquals(0, (float) $otherSupervisor->fresh()->balance);
     }
 
+    public function test_admin_can_replace_and_remove_expense_media_while_editing(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+        $expense = Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 50,
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'receipt_url' => '/storage/receipts/A101/old.jpg',
+            'date' => '2024-01-02',
+            'metadata' => [
+                'receipt_urls' => ['/storage/receipts/A101/old.jpg'],
+                'item_images' => [
+                    ['url' => '/storage/expense-items/A101/old.jpg', 'name' => 'old.jpg'],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson("/api/admin/transactions/{$expense->id}", [
+                'amount' => 50,
+                'details' => 'Site Meal',
+                'description' => 'Lunch',
+                'site_id' => 'A101',
+                'receipt_url' => '/storage/receipts/A101/new.jpg',
+                'receipt_urls' => ['/storage/receipts/A101/new.jpg'],
+                'item_images' => [],
+                'date' => '2024-01-02',
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction.receipt_url', url('/receipts/A101/new.jpg'))
+            ->assertJsonPath('transaction.metadata.receipt_urls.0', '/storage/receipts/A101/new.jpg')
+            ->assertJsonCount(0, 'transaction.metadata.item_images');
+
+        $expense->refresh();
+
+        $this->assertSame('/storage/receipts/A101/new.jpg', $expense->getRawOriginal('receipt_url'));
+        $this->assertSame(['/storage/receipts/A101/new.jpg'], $expense->metadata['receipt_urls']);
+        $this->assertSame([], $expense->metadata['item_images']);
+    }
+
     public function test_admin_can_delete_expense_and_balance_is_recalculated(): void
     {
         $admin = User::factory()->admin()->create();
