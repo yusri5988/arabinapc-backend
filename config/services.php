@@ -41,4 +41,12 @@ return [
         'model' => env('CLAUDE_API_MODEL', 'claude-3-haiku-20240307'),
     ],
 
+    'google_sheets' => [
+        'spreadsheet_id' => env('GOOGLE_SHEETS_SPREADSHEET_ID'),
+        'tab_name' => env('GOOGLE_SHEETS_TAB_NAME', 'MainData-PC System'),
+        'header_row' => (int) env('GOOGLE_SHEETS_HEADER_ROW', 1),
+        'enabled' => filter_var(env('GOOGLE_SHEETS_SYNC_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'max_rows' => (int) env('GOOGLE_SHEETS_MAX_ROWS', 5000),
+    ],
+
 ];

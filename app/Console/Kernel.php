@@ -15,6 +15,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('images:sync-google-drive')
             ->dailyAt('02:00')
             ->withoutOverlapping();
+
+        $schedule->command('transactions:sync-google-sheets')
+            ->everyFiveMinutes()
+            ->withoutOverlapping();
     }
 
     /**

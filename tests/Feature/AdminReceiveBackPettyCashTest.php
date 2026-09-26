@@ -196,4 +196,163 @@ class AdminReceiveBackPettyCashTest extends TestCase
         $response->assertStatus(403);
         $this->assertDatabaseCount('transactions', 2); // topup + return_to_admin still exist
     }
+
+    public function test_admin_can_receive_back_partial_petty_cash_by_specifying_amount(): void
+    {
+        $admin = User::factory()->admin()->create(['name' => 'Admin Arabina']);
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create(['name' => 'Staff B']);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => 200,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Petty cash successfully received back from staff.')
+            ->assertJsonPath('amount', 200)
+            ->assertJsonPath('balance', 300);
+
+        $this->assertEquals(300, (float) $supervisor->fresh()->balance);
+
+        $transaction = Transaction::where('type', 'return_to_admin')->first();
+        $this->assertNotNull($transaction);
+        $this->assertEquals(200, (float) $transaction->amount);
+    }
+
+    public function test_admin_cannot_receive_back_amount_exceeding_current_balance(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 150,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => 200,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Amount to receive back cannot exceed current petty cash balance.');
+
+        $this->assertEquals(0, Transaction::where('type', 'return_to_admin')->count());
+    }
+
+    public function test_admin_cannot_receive_back_zero_or_negative_amount(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $responseZero = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => 0,
+            ]);
+        $responseZero->assertStatus(422)
+            ->assertJsonValidationErrors(['amount']);
+
+        $responseNegative = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => -50,
+            ]);
+        $responseNegative->assertStatus(422)
+            ->assertJsonValidationErrors(['amount']);
+
+        $this->assertEquals(0, Transaction::where('type', 'return_to_admin')->count());
+    }
+
+    public function test_admin_can_receive_back_with_explicit_null_amount(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 350.75,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => null,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('amount', 350.75)
+            ->assertJsonPath('balance', 0);
+
+        $this->assertEquals(0, (float) $supervisor->fresh()->balance);
+    }
+
+    public function test_admin_can_receive_back_exact_full_balance_as_amount(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 250.50,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => 250.50,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('amount', 250.50)
+            ->assertJsonPath('balance', 0);
+
+        $this->assertEquals(0, (float) $supervisor->fresh()->balance);
+    }
+
+    public function test_admin_can_receive_back_string_numeric_amount(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->withBalance(0)->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Opening Balance',
+            'date' => '2026-07-01',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson("/api/admin/supervisors/{$supervisor->id}/receive-back", [
+                'amount' => '125.50',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('amount', 125.50)
+            ->assertJsonPath('balance', 374.50);
+
+        $this->assertEquals(374.50, (float) $supervisor->fresh()->balance);
+    }
 }

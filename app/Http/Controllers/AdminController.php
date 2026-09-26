@@ -249,17 +249,27 @@ class AdminController extends Controller
     {
         abort_unless($supervisor->role === 'supervisor', 404);
 
+        $request->validate([
+            'amount' => 'nullable|numeric|min:0.01',
+        ]);
+
         $admin = $request->user();
         $previousBalance = null;
 
         try {
-            $result = DB::transaction(function () use ($admin, $supervisor, $balanceService, $log, &$previousBalance) {
+            $result = DB::transaction(function () use ($admin, $supervisor, $balanceService, $log, $request, &$previousBalance) {
                 $supervisor = User::whereKey($supervisor->id)->lockForUpdate()->firstOrFail();
                 $previousBalance = $balanceService->calculate($supervisor->id);
-                $amount = $previousBalance;
 
-                if ($amount <= 0) {
+                if ($previousBalance <= 0) {
                     abort(422, 'Staff does not have any petty cash balance to receive back.');
+                }
+
+                $requestedAmount = $request->filled('amount') ? round((float) $request->input('amount'), 2) : null;
+                $amount = $requestedAmount ?? $previousBalance;
+
+                if ($amount > $previousBalance) {
+                    abort(422, 'Amount to receive back cannot exceed current petty cash balance.');
                 }
 
                 Transaction::create([

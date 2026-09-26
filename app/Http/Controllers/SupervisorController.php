@@ -176,7 +176,7 @@ class SupervisorController extends Controller
     {
         try {
             $request->validate([
-                'item_image' => 'required|image|max:15360',
+                'item_image' => 'required|image|max:20480',
                 'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
             ]);
             $log->log('item_image.validation', 'success', [
@@ -227,9 +227,9 @@ class SupervisorController extends Controller
     {
         try {
             $request->validate([
-                'receipt' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif,pdf|max:15360',
+                'receipt' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif,pdf|max:20480',
                 'receipts' => 'nullable|array',
-                'receipts.*' => 'file|mimes:jpeg,png,jpg,webp,gif,pdf|max:15360',
+                'receipts.*' => 'file|mimes:jpeg,png,jpg,webp,gif,pdf|max:20480',
                 'site_id' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
             ]);
 

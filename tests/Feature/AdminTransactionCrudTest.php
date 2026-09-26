@@ -94,6 +94,50 @@ class AdminTransactionCrudTest extends TestCase
         $this->assertEquals(0, (float) $otherSupervisor->fresh()->balance);
     }
 
+    public function test_admin_can_replace_and_remove_expense_media_while_editing(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+        $expense = Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 50,
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'receipt_url' => '/storage/receipts/A101/old.jpg',
+            'date' => '2024-01-02',
+            'metadata' => [
+                'receipt_urls' => ['/storage/receipts/A101/old.jpg'],
+                'item_images' => [
+                    ['url' => '/storage/expense-items/A101/old.jpg', 'name' => 'old.jpg'],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson("/api/admin/transactions/{$expense->id}", [
+                'amount' => 50,
+                'details' => 'Site Meal',
+                'description' => 'Lunch',
+                'site_id' => 'A101',
+                'receipt_url' => '/storage/receipts/A101/new.jpg',
+                'receipt_urls' => ['/storage/receipts/A101/new.jpg'],
+                'item_images' => [],
+                'date' => '2024-01-02',
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction.receipt_url', url('/receipts/A101/new.jpg'))
+            ->assertJsonPath('transaction.metadata.receipt_urls.0', '/storage/receipts/A101/new.jpg')
+            ->assertJsonCount(0, 'transaction.metadata.item_images');
+
+        $expense->refresh();
+
+        $this->assertSame('/storage/receipts/A101/new.jpg', $expense->getRawOriginal('receipt_url'));
+        $this->assertSame(['/storage/receipts/A101/new.jpg'], $expense->metadata['receipt_urls']);
+        $this->assertSame([], $expense->metadata['item_images']);
+    }
+
     public function test_admin_can_delete_expense_and_balance_is_recalculated(): void
     {
         $admin = User::factory()->admin()->create();
@@ -298,5 +342,124 @@ class AdminTransactionCrudTest extends TestCase
             ->assertJsonCount(1, 'transactions')
             ->assertJsonPath('transactions.0.description', 'Topup 1');
     }
-}
 
+    public function test_admin_can_filter_transactions_by_date_range(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 100,
+            'description' => 'Tx Jan',
+            'date' => '2026-01-15',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 200,
+            'description' => 'Tx Feb',
+            'date' => '2026-02-15',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 300,
+            'description' => 'Tx Mar',
+            'date' => '2026-03-15',
+        ]);
+
+        // Filter for Feb only
+        $response = $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-02-01&end_date=2026-02-28')
+            ->assertOk()
+            ->assertJsonCount(1, 'transactions')
+            ->assertJsonPath('transactions.0.description', 'Tx Feb')
+            ->assertJsonPath('total_in', 200)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 200);
+
+        // Filter from Feb onwards
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-02-01')
+            ->assertOk()
+            ->assertJsonCount(2, 'transactions')
+            ->assertJsonPath('total_in', 500)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 500);
+
+        // Filter up to Feb
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?end_date=2026-02-28')
+            ->assertOk()
+            ->assertJsonCount(2, 'transactions')
+            ->assertJsonPath('total_in', 300)
+            ->assertJsonPath('total_out', 0)
+            ->assertJsonPath('net', 300);
+    }
+
+    public function test_admin_cannot_filter_transactions_with_invalid_or_reversed_dates(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=not-a-date')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_date']);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?end_date=not-a-date')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_date']);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions?start_date=2026-03-01&end_date=2026-02-28')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_date']);
+    }
+
+    public function test_admin_transaction_totals_split_money_in_and_out(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $supervisor = User::factory()->supervisor()->create();
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'topup',
+            'amount' => 500,
+            'description' => 'Topup',
+            'date' => '2026-02-01',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'expense',
+            'amount' => 100,
+            'payment_to' => 'Vendor A',
+            'details' => 'Site Meal',
+            'description' => 'Lunch',
+            'site_id' => 'A101',
+            'date' => '2026-02-02',
+        ]);
+
+        Transaction::create([
+            'user_id' => $supervisor->id,
+            'type' => 'return_to_admin',
+            'amount' => 400,
+            'payment_to' => 'Admin',
+            'description' => 'Returned to admin',
+            'date' => '2026-02-03',
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/transactions')
+            ->assertOk()
+            ->assertJsonPath('total_in', 500)
+            ->assertJsonPath('total_out', 500)
+            ->assertJsonPath('net', 0)
+            ->assertJsonMissingPath('total_amount');
+    }
+}

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Google\Client as GoogleClient;
 use Google\Service\Drive as GoogleDrive;
+use Google\Service\Sheets as GoogleSheets;
 
 class GoogleDriveAuthController extends Controller
 {
@@ -54,6 +55,7 @@ class GoogleDriveAuthController extends Controller
         $client->setAccessType('offline');
         $client->setPrompt('consent');
         $client->addScope(GoogleDrive::DRIVE_FILE);
+        $client->addScope(GoogleSheets::SPREADSHEETS);
 
         return $client;
     }

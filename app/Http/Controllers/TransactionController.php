@@ -14,14 +14,26 @@ class TransactionController extends Controller
 {
     public function index(Request $request)
     {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
         $baseQuery = Transaction::whereHas('user', function ($query) {
                 $query->where('role', 'supervisor');
             })
             ->when($request->filled('user_id'), function ($query) use ($request) {
                 $query->where('user_id', $request->input('user_id'));
+            })
+            ->when($validated['start_date'] ?? null, function ($query, $startDate) {
+                $query->whereDate('date', '>=', $startDate);
+            })
+            ->when($validated['end_date'] ?? null, function ($query, $endDate) {
+                $query->whereDate('date', '<=', $endDate);
             });
 
-        $totalAmount = (float) (clone $baseQuery)->sum('amount');
+        $totalIn = (float) (clone $baseQuery)->where('type', 'topup')->sum('amount');
+        $totalOut = (float) (clone $baseQuery)->whereIn('type', ['expense', 'return_to_admin'])->sum('amount');
         $perPage = max(1, min(100, (int) $request->input('per_page', 10)));
 
         $paginator = (clone $baseQuery)
@@ -56,7 +68,9 @@ class TransactionController extends Controller
 
         return response()->json([
             'transactions' => $transactions,
-            'total_amount' => $totalAmount,
+            'total_in' => $totalIn,
+            'total_out' => $totalOut,
+            'net' => $totalIn - $totalOut,
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),

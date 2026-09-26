@@ -15,6 +15,8 @@ export default function AdminSupervisors() {
     const [receivingBackSupervisorId, setReceivingBackSupervisorId] = useState(null);
     const [receiveBackSupervisor, setReceiveBackSupervisor] = useState(null);
     const [receiveBackFeedback, setReceiveBackFeedback] = useState(null);
+    const [receiveBackAmount, setReceiveBackAmount] = useState('');
+    const [receiveBackError, setReceiveBackError] = useState('');
     const [exportingSupervisorId, setExportingSupervisorId] = useState(null);
     const exportPollRef = useRef(null);
     const exportTimeoutRef = useRef(null);
@@ -100,6 +102,8 @@ export default function AdminSupervisors() {
         }
 
         setReceiveBackFeedback(null);
+        setReceiveBackError('');
+        setReceiveBackAmount(balance.toFixed(2));
         setReceiveBackSupervisor(supervisor);
     };
 
@@ -108,15 +112,29 @@ export default function AdminSupervisors() {
 
         const supervisor = receiveBackSupervisor;
         const balance = Number(supervisor.balance ?? 0);
+        const amountNum = Number(receiveBackAmount);
+
+        if (!receiveBackAmount || isNaN(amountNum) || amountNum <= 0) {
+            setReceiveBackError('Please enter a valid amount greater than RM 0.00.');
+            return;
+        }
+
+        if (amountNum > balance) {
+            setReceiveBackError(`Amount cannot exceed current balance (RM ${balance.toFixed(2)}).`);
+            return;
+        }
 
         setReceivingBackSupervisorId(supervisor.id);
         setReceiveBackFeedback(null);
+        setReceiveBackError('');
 
         try {
-            const res = await api.post(`/admin/supervisors/${supervisor.id}/receive-back`);
+            const res = await api.post(`/admin/supervisors/${supervisor.id}/receive-back`, {
+                amount: amountNum,
+            });
             setReceiveBackFeedback({
                 type: 'success',
-                message: `Received back RM ${Number(res.data.amount ?? balance).toFixed(2)} from ${supervisor.name}.`
+                message: `Received back RM ${Number(res.data.amount ?? amountNum).toFixed(2)} from ${supervisor.name}.`
             });
             setReceiveBackSupervisor(null);
             refetch();
@@ -265,14 +283,14 @@ export default function AdminSupervisors() {
                             </button>
                         </div>
 
-                        <div className="space-y-5 p-5 md:p-6">
+                        <form onSubmit={(e) => { e.preventDefault(); handleReceiveBack(); }} className="space-y-5 p-5 md:p-6">
                             <div className="text-center space-y-2">
                                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50">
                                     <RotateCcw size={28} className="text-emerald-600" />
                                 </div>
                                 <p className="text-lg font-bold text-slate-900">Confirm Receive Back</p>
                                 <p id="receive-back-description" className="text-sm text-slate-500">
-                                    Are you sure you want to receive back this amount?
+                                    Enter the amount you want to receive back from staff.
                                 </p>
                             </div>
 
@@ -283,34 +301,78 @@ export default function AdminSupervisors() {
                                     <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{receiveBackSupervisor.department}</span>
                                 )}
                                 <p className="text-sm text-slate-500">{receiveBackSupervisor.phone}</p>
+                                <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-xs">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Current Balance:</span>
+                                    <span className="font-black text-emerald-600 text-sm">RM {receiveBackBalance.toFixed(2)}</span>
+                                </div>
                             </div>
 
-                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-center">
-                                <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Amount</p>
-                                <p className="mt-1 text-3xl font-black text-emerald-700">RM {receiveBackBalance.toFixed(2)}</p>
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-400">
+                                        Amount to Receive Back (RM)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setReceiveBackAmount(receiveBackBalance.toFixed(2));
+                                            setReceiveBackError('');
+                                        }}
+                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+                                    >
+                                        All (RM {receiveBackBalance.toFixed(2)})
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-lg">
+                                        RM
+                                    </span>
+                                    <input
+                                        required
+                                        min="0.01"
+                                        max={receiveBackBalance}
+                                        step="0.01"
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={receiveBackAmount}
+                                        onChange={(event) => {
+                                            setReceiveBackAmount(event.target.value);
+                                            setReceiveBackError('');
+                                        }}
+                                        className="w-full rounded-2xl border-2 border-slate-200 bg-white py-3 pl-14 pr-4 text-2xl font-black text-emerald-700 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                                        placeholder={receiveBackBalance.toFixed(2)}
+                                    />
+                                </div>
+                                {receiveBackError && (
+                                    <p className="text-xs font-semibold text-red-600 mt-1.5">{receiveBackError}</p>
+                                )}
+                                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                                    <span>Remaining staff balance:</span>
+                                    <span className="font-bold text-slate-700">
+                                        RM {Math.max(0, receiveBackBalance - (Number(receiveBackAmount) || 0)).toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
 
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 pt-1">
                                 <button
                                     type="button"
                                     ref={receiveBackCancelRef}
                                     onClick={() => setReceiveBackSupervisor(null)}
                                     disabled={receiveBackLoading}
-                                    className="flex-1 rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 px-4 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    type="button"
-                                    onClick={handleReceiveBack}
+                                    type="submit"
                                     disabled={receiveBackLoading}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-4 font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="flex-1 rounded-xl bg-emerald-600 py-2.5 px-4 text-sm font-bold text-white shadow-md shadow-emerald-600/15 transition-all hover:bg-emerald-700 active:bg-emerald-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center whitespace-nowrap"
                                 >
-                                    {receiveBackLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <RotateCcw size={18} />}
-                                    {receiveBackLoading ? 'Processing...' : 'CONFIRM RECEIVE BACK'}
+                                    {receiveBackLoading ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Receive Back'}
                                 </button>
                             </div>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}
@@ -383,10 +445,9 @@ export default function AdminSupervisors() {
                                 type="button"
                                 onClick={() => handleExportExcel(sv)}
                                 disabled={exportingSupervisorId === sv.id}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-700 bg-emerald-600 px-3 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 active:scale-95 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="h-8 px-3 rounded-xl border border-sky-200 bg-sky-50 text-sky-800 text-xs font-bold transition-colors hover:bg-sky-100 active:scale-95 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
                             >
-                                {exportingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} strokeWidth={2.5} />}
-                                Export
+                                {exportingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Export'}
                             </button>
                         </div>
                         <div className="space-y-3 pt-4 border-t border-slate-100/80">
@@ -397,36 +458,32 @@ export default function AdminSupervisors() {
                             <div className="grid grid-cols-2 gap-2">
                                 <Link
                                     to={`/admin/supervisors/${sv.id}/transactions`}
-                                    className="min-w-0 flex items-center justify-center gap-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-slate-200/60 active:scale-95 transition-all"
+                                    className="h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 whitespace-nowrap"
                                 >
-                                    <History size={14} strokeWidth={2.5} />
                                     History
                                 </Link>
                                 <button
                                     type="button"
                                     onClick={() => setSelectedSupervisor(sv)}
-                                    className="min-w-0 flex items-center justify-center gap-1.5 text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-slate-200/60 active:scale-95 transition-all"
+                                    className="h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 whitespace-nowrap"
                                 >
-                                    <Send size={14} strokeWidth={2.5} />
                                     Send
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleResetStaffPassword(sv)}
                                     disabled={resettingSupervisorId === sv.id}
-                                    className="min-w-0 flex items-center justify-center gap-1.5 text-amber-700 hover:bg-amber-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-amber-200/70 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    {resettingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} strokeWidth={2.5} />}
-                                    Reset
+                                    {resettingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Reset'}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleOpenReceiveBackConfirm(sv)}
                                     disabled={!canReceiveBack(sv) || receivingBackSupervisorId === sv.id}
-                                    className="min-w-0 flex items-center justify-center gap-1.5 text-rose-700 hover:bg-rose-50 text-[12px] font-bold px-2 py-2.5 rounded-xl border border-rose-200/70 active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    {receivingBackSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} strokeWidth={2.5} />}
-                                    Receive Back
+                                    {receivingBackSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Receive Back'}
                                 </button>
                             </div>
                         </div>
@@ -441,7 +498,7 @@ export default function AdminSupervisors() {
                         <thead className="bg-slate-50/50 text-slate-400 text-xs uppercase tracking-widest font-bold border-b border-slate-100">
                             <tr>
                                 <th className="px-6 py-5">Staff Member</th>
-                                <th className="px-6 py-5">Department</th>
+                                <th className="px-6 py-5 text-center">Department</th>
                                 <th className="px-6 py-5">Phone Number</th>
                                 <th className="px-6 py-5 text-right">Balance (RM)</th>
                                 <th className="px-6 py-5 text-center">Action</th>
@@ -458,8 +515,10 @@ export default function AdminSupervisors() {
                                             <span className="text-slate-900 font-bold">{sv.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">{sv.department || 'Site'}</span>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className="inline-flex items-center justify-center text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">
+                                            {sv.department || 'Site'}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-slate-500 font-medium">{sv.phone}</td>
                                     <td className="px-6 py-4 text-right text-[15px] font-black text-slate-900">{sv.balance}</td>
@@ -467,44 +526,40 @@ export default function AdminSupervisors() {
                                         <div className="inline-flex items-center gap-2">
                                             <Link
                                                 to={`/admin/supervisors/${sv.id}/transactions`}
-                                                className="inline-flex items-center gap-2 text-slate-700 hover:text-emerald-700 bg-slate-50 px-4 py-2 rounded-xl font-bold transition-colors border border-slate-200/60"
+                                                className="w-[104px] h-9 rounded-xl font-bold text-xs inline-flex items-center justify-center transition-all border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 active:scale-95 whitespace-nowrap"
                                             >
-                                                <History size={16} strokeWidth={2.5} />
                                                 History
                                             </Link>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedSupervisor(sv)}
-                                                className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl font-bold transition-colors"
+                                                className="w-[104px] h-9 rounded-xl font-bold text-xs inline-flex items-center justify-center transition-all border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 whitespace-nowrap"
                                             >
-                                                Send <ArrowUpRight size={16} strokeWidth={2.5} />
+                                                Send
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenReceiveBackConfirm(sv)}
                                                 disabled={!canReceiveBack(sv) || receivingBackSupervisorId === sv.id}
-                                                className="inline-flex items-center gap-2 text-rose-700 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl font-bold transition-colors border border-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                className="w-[104px] h-9 rounded-xl font-bold text-xs inline-flex items-center justify-center transition-all border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                                             >
-                                                {receivingBackSupervisorId === sv.id ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} strokeWidth={2.5} />}
-                                                Receive Back
+                                                {receivingBackSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Receive Back'}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleResetStaffPassword(sv)}
                                                 disabled={resettingSupervisorId === sv.id}
-                                                className="inline-flex items-center gap-2 text-amber-700 hover:text-amber-800 bg-amber-50 px-4 py-2 rounded-xl font-bold transition-colors border border-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="w-[104px] h-9 rounded-xl font-bold text-xs inline-flex items-center justify-center transition-all border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                                             >
-                                                {resettingSupervisorId === sv.id ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} strokeWidth={2.5} />}
-                                                Reset
+                                                {resettingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Reset'}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleExportExcel(sv)}
                                                 disabled={exportingSupervisorId === sv.id}
-                                                className="inline-flex items-center gap-2 text-sky-700 hover:text-sky-800 bg-sky-50 px-4 py-2 rounded-xl font-bold transition-colors border border-sky-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                className="w-[104px] h-9 rounded-xl font-bold text-xs inline-flex items-center justify-center transition-all border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 active:scale-95 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
                                             >
-                                                {exportingSupervisorId === sv.id ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} strokeWidth={2.5} />}
-                                                Export
+                                                {exportingSupervisorId === sv.id ? <Loader2 size={14} className="animate-spin" /> : 'Export'}
                                             </button>
                                         </div>
                                     </td>

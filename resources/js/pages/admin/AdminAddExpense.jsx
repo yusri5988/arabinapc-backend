@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Camera, Loader2, Upload, ImagePlus, Trash2, Image as ImageIcon, ChevronDown, FileText, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Camera, Loader2, Upload, ImagePlus, Trash2, Image as ImageIcon, ChevronDown, FileText, Sparkles, CheckCircle2, RotateCw } from 'lucide-react';
 import api from '../../lib/axios';
 import { normalizeSupervisors } from '../../lib/normalize';
 import { getDetailsOptions } from '../../lib/expenseDetails';
 
-const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
-const MAX_IMAGE_SIZE_LABEL = '15 MB';
+const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_SIZE_LABEL = '20 MB';
 
 const formatFileSize = (bytes) => {
     if (!bytes || bytes === 0) return '0 B';
@@ -25,6 +25,7 @@ export default function AdminAddExpense() {
     const detailsDropdownRef = useRef(null);
     const pollIntervalRef = useRef(null);
     const pollTimeoutRef = useRef(null);
+    const receiptRequestIdRef = useRef(0);
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [itemImageProcessing, setItemImageProcessing] = useState(false);
@@ -35,6 +36,7 @@ export default function AdminAddExpense() {
     const [receiptUrl, setReceiptUrl] = useState('');
     const [receiptUrls, setReceiptUrls] = useState([]);
     const [stagedReceipts, setStagedReceipts] = useState([]);
+    const [rotatingReceiptId, setRotatingReceiptId] = useState(null);
     const [scannedSuccess, setScannedSuccess] = useState(false);
     const [itemImages, setItemImages] = useState([]);
     const [detailsOther, setDetailsOther] = useState('');
@@ -97,18 +99,20 @@ export default function AdminAddExpense() {
     }, [form.supervisor_id, supervisors]);
 
     useEffect(() => {
-        if (!form.supervisor_id || !form.site_id) {
-            setReceiptUrl('');
-            setReceiptUrls([]);
-            setReceiptFileName('');
-            stagedReceipts.forEach((item) => {
-                if (item.preview) URL.revokeObjectURL(item.preview);
-            });
-            setStagedReceipts([]);
-            setScannedSuccess(false);
-            setItemImages([]);
-        }
-    }, [form.supervisor_id, form.site_id]);
+        receiptRequestIdRef.current += 1;
+        stopPolling();
+        setProcessing(false);
+        setOcrError('');
+        setReceiptUrl('');
+        setReceiptUrls([]);
+        setReceiptFileName('');
+        stagedReceipts.forEach((item) => {
+            if (item.preview) URL.revokeObjectURL(item.preview);
+        });
+        setStagedReceipts([]);
+        setScannedSuccess(false);
+        setItemImages([]);
+    }, [form.supervisor_id, form.site_id, stopPolling]);
 
     const handleSelectReceiptFiles = (e) => {
         const files = Array.from(e.target.files ?? []);
@@ -155,6 +159,7 @@ export default function AdminAddExpense() {
                 name: file.name,
                 size: file.size,
                 isPdf,
+                rotation: 0,
                 preview: isPdf ? null : URL.createObjectURL(file),
             };
         });
@@ -162,6 +167,75 @@ export default function AdminAddExpense() {
         setStagedReceipts((prev) => [...prev, ...newItems]);
         setScannedSuccess(false);
         e.target.value = '';
+    };
+
+    const handleRotateReceipt = async (id) => {
+        const item = stagedReceipts.find((receipt) => receipt.id === id);
+        if (!item || item.isPdf || !item.preview || rotatingReceiptId) return;
+
+        setRotatingReceiptId(id);
+
+        try {
+            const image = new Image();
+            image.src = item.preview;
+
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = reject;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = image.naturalHeight;
+            canvas.height = image.naturalWidth;
+
+            const context = canvas.getContext('2d');
+            context.translate(canvas.width / 2, canvas.height / 2);
+            context.rotate(Math.PI / 2);
+            context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+            const createBlob = (type, quality) => new Promise((resolve, reject) => {
+                canvas.toBlob((result) => {
+                    if (result) resolve(result);
+                    else reject(new Error('Unable to rotate image.'));
+                }, type, quality);
+            });
+
+            let blob = await createBlob(item.file.type || 'image/jpeg', 0.92);
+            if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+                blob = await createBlob('image/jpeg', 0.82);
+            }
+            if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+                blob = await createBlob('image/jpeg', 0.68);
+            }
+            if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+                throw new Error(`Rotated image exceeds ${MAX_IMAGE_SIZE_LABEL}.`);
+            }
+
+            const rotatedFile = new File([blob], item.name, {
+                type: blob.type || item.file.type || 'image/jpeg',
+                lastModified: Date.now(),
+            });
+            const rotatedPreview = URL.createObjectURL(rotatedFile);
+
+            setStagedReceipts((current) => current.map((receipt) => {
+                if (receipt.id !== id) return receipt;
+
+                if (receipt.preview) URL.revokeObjectURL(receipt.preview);
+
+                return {
+                    ...receipt,
+                    file: rotatedFile,
+                    preview: rotatedPreview,
+                    size: rotatedFile.size,
+                    rotation: (receipt.rotation + 90) % 360,
+                };
+            }));
+        } catch (error) {
+            setOcrError(`Unable to rotate ${item.name}. Please try again.`);
+            console.error('Receipt rotation error:', error);
+        } finally {
+            setRotatingReceiptId(null);
+        }
     };
 
     const removeStagedReceipt = (id) => {
@@ -188,6 +262,7 @@ export default function AdminAddExpense() {
         }
 
         stopPolling();
+        const requestId = ++receiptRequestIdRef.current;
         setProcessing(true);
         setOcrError('');
 
@@ -206,6 +281,8 @@ export default function AdminAddExpense() {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
+            if (requestId !== receiptRequestIdRef.current) return;
+
             const { job_id, receipt_url, receipt_urls } = res.data;
             setReceiptUrl(receipt_url || '');
             setReceiptUrls(receipt_urls || (receipt_url ? [receipt_url] : []));
@@ -213,6 +290,7 @@ export default function AdminAddExpense() {
             pollIntervalRef.current = setInterval(async () => {
                 try {
                     const statusRes = await api.get(`/admin/receipt-status/${job_id}`);
+                    if (requestId !== receiptRequestIdRef.current) return;
                     const { status, data } = statusRes.data;
 
                     if (status === 'completed') {
@@ -440,6 +518,7 @@ export default function AdminAddExpense() {
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Staff</label>
                         <select
+                            disabled={processing}
                             required
                             value={form.supervisor_id}
                             onChange={(e) => setForm({ ...form, supervisor_id: e.target.value })}
@@ -472,6 +551,7 @@ export default function AdminAddExpense() {
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Site ID</label>
                         <input
+                            disabled={processing}
                             required
                             maxLength={100}
                             pattern="[A-Za-z0-9_-]+"
@@ -625,7 +705,7 @@ export default function AdminAddExpense() {
                                      </div>
                                      <p className="text-slate-600 font-bold text-center text-sm md:text-base">
                                          Select or Capture Receipt / PDF<br />
-                                         <span className="text-xs text-slate-400">Files will be listed below before being scanned by AI (maximum 15 MB)</span>
+                                         <span className="text-xs text-slate-400">Files will be listed below before being scanned by AI (maximum 20 MB)</span>
                                      </p>
                                      <div className="grid grid-cols-2 gap-3 w-full mt-2">
                                          <button
@@ -662,18 +742,21 @@ export default function AdminAddExpense() {
 
                             <div className="grid grid-cols-1 gap-2">
                                 {stagedReceipts.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white p-2.5 shadow-sm">
-                                        <div className="flex items-center gap-3 min-w-0">
+                                    <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-emerald-100 bg-white p-3 shadow-sm">
+                                        {item.preview && (
+                                            <div className="flex min-h-40 w-full items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2 sm:min-h-48">
+                                                <img
+                                                    src={item.preview}
+                                                    alt={item.name}
+                                                    className="max-h-64 w-full rounded-md object-contain sm:max-h-72"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="flex items-center justify-between gap-3 min-w-0">
                                             {item.isPdf ? (
                                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600 border border-rose-100 font-bold text-xs">
                                                     PDF
                                                 </div>
-                                            ) : item.preview ? (
-                                                <img
-                                                    src={item.preview}
-                                                    alt={item.name}
-                                                    className="h-10 w-10 shrink-0 rounded-lg object-cover border border-slate-200"
-                                                />
                                             ) : (
                                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                                                     <FileText size={18} />
@@ -684,15 +767,29 @@ export default function AdminAddExpense() {
                                                 <p className="text-[11px] text-slate-400">{formatFileSize(item.size)}</p>
                                             </div>
                                         </div>
-                                        <button
-                                            type="button"
-                                            disabled={processing}
-                                            onClick={() => removeStagedReceipt(item.id)}
-                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 shrink-0"
-                                        >
-                                            <Trash2 size={13} />
-                                            Remove
-                                        </button>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {!item.isPdf && (
+                                                <button
+                                                    type="button"
+                                                    disabled={processing || rotatingReceiptId !== null}
+                                                    onClick={() => handleRotateReceipt(item.id)}
+                                                    title="Rotate image 90°"
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                                                >
+                                                    <RotateCw size={13} className={rotatingReceiptId === item.id ? 'animate-spin' : ''} />
+                                                    Rotate
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={processing || rotatingReceiptId !== null}
+                                                onClick={() => removeStagedReceipt(item.id)}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                                            >
+                                                <Trash2 size={13} />
+                                                Remove
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

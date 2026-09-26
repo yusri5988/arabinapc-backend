@@ -100,6 +100,17 @@ export default function TransactionDetailModal({
     const itemImages = Array.isArray(transaction.metadata?.item_images)
         ? transaction.metadata.item_images
         : [];
+    const receiptImages = (() => {
+        const urls = Array.isArray(transaction.metadata?.receipt_urls)
+            ? transaction.metadata.receipt_urls
+            : [];
+        const allUrls = urls.length > 0 ? urls : [transaction.receipt_url];
+
+        return allUrls
+            .filter(Boolean)
+            .map((url) => normalizeUrl(url))
+            .filter((url, index, values) => url && values.indexOf(url) === index);
+    })();
 
     return (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-in fade-in duration-200">
@@ -270,15 +281,15 @@ export default function TransactionDetailModal({
                     </div>
 
                     {/* Receipt Image / Link */}
-                    {transaction.receipt_url && (
+                    {receiptImages.length > 0 && (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
                                     <ReceiptText size={16} className="text-emerald-600" />
-                                    <span>Receipt Document</span>
+                                    <span>Receipt Documents ({receiptImages.length})</span>
                                 </div>
                                 <a
-                                    href={normalizeUrl(transaction.receipt_url)}
+                                    href={receiptImages[0]}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
@@ -288,19 +299,23 @@ export default function TransactionDetailModal({
                                 </a>
                             </div>
 
-                            <div
-                                onClick={() => setSelectedImage(normalizeUrl(transaction.receipt_url))}
-                                className="group relative max-h-60 rounded-xl overflow-hidden border border-slate-200/80 bg-white cursor-pointer flex items-center justify-center"
-                            >
-                                <img
-                                    src={normalizeUrl(transaction.receipt_url)}
-                                    alt="Receipt"
-                                    className="w-full h-auto max-h-60 object-contain group-hover:scale-105 transition-transform duration-300"
-                                />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-sm">
-                                    <ZoomIn size={18} />
-                                    <span>Click to Preview</span>
-                                </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                {receiptImages.map((imgUrl, index) => (
+                                    <div
+                                        key={imgUrl}
+                                        onClick={() => setSelectedImage(imgUrl)}
+                                        className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white cursor-pointer flex items-center justify-center"
+                                    >
+                                        <img
+                                            src={imgUrl}
+                                            alt={`Receipt ${index + 1}`}
+                                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                            <ZoomIn size={16} />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
